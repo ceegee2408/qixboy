@@ -30,8 +30,20 @@ bool qixSegmentInside(vertex a, vertex b) {
   if (!isInsidePolygon(a, perim.vertices, perim.vertexCount)) return false;
   if (!isInsidePolygon(b, perim.vertices, perim.vertexCount)) return false;
 
-  vertex mid((a.getx() + b.getx()) / 2, (a.gety() + b.gety()) / 2);
-  return isInsidePolygon(mid, perim.vertices, perim.vertexCount);
+  int dx = b.getx() - a.getx();
+  int dy = b.gety() - a.gety();
+  int steps = abs(dx) > abs(dy) ? abs(dx) : abs(dy);
+
+  for (int step = 1; step < steps; step++) {
+    int x = a.getx() + (dx * step) / steps;
+    int y = a.gety() + (dy * step) / steps;
+
+    if (!isInsidePolygon(vertex(x, y), perim.vertices, perim.vertexCount)) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 } // namespace
