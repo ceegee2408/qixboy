@@ -331,8 +331,9 @@ void updatePerim() {
     
     int minY = min(v1.gety(), v2.gety());
     int maxY = max(v1.gety(), v2.gety());
-    if (testY >= minY && testY < maxY && v1.getx() != v2.getx()) {
-      int x = v1.getx() + (testY - v1.gety()) * (v2.getx() - v1.getx()) / (v2.gety() - v1.gety());
+    if (testY >= minY && testY < maxY) {
+      // Axis-aligned edges only: vertical edges have constant x, horizontal excluded by y-range
+      int x = v1.getx();
       if (x >= q.position.getx()) {
         xCount++;
       }
@@ -346,16 +347,17 @@ void updatePerim() {
     vertex v2 = p.trail[t + 1];
     int minY = min(v1.gety(), v2.gety());
     int maxY = max(v1.gety(), v2.gety());
-    if (testY >= minY && testY < maxY && v1.getx() != v2.getx()) {
-      int x = v1.getx() + (testY - v1.gety()) * (v2.getx() - v1.getx()) / (v2.gety() - v1.gety());
+    if (testY >= minY && testY < maxY) {
+      // Axis-aligned edges only: vertical edges have constant x, horizontal excluded by y-range
+      int x = v1.getx();
       if (x >= q.position.getx()) {
         xCount++;
       }
     }
   }
   
-  // If odd count, Qix is inside forward arc; fill forward arc (dir=1) instead
-  int arcDir = (xCount % 2 == 1) ? 1 : -1;
+  // If odd count, Qix is inside forward arc; fill the OTHER arc (away from Qix)
+  int arcDir = (xCount % 2 == 1) ? -1 : 1;
   
   // Fill using virtual iteration — no new array needed
   for (int y = 0; y < HEIGHT; y++) {
@@ -380,55 +382,46 @@ void updatePerim() {
     }
   }
   
-  // Splice trail into perimeter, replacing the arc we just filled
-  int newCount = perim.vertexCount - arcLen + p.trailCount;
+  // Splice trail into perimeter, replacing the arc we just filled.
+  // The enter point is on edge (v[startIdx], v[startIdx+1]).
+  // The exit  point is on edge (v[endIdx],   v[endIdx+1]).
+  // We keep the arc that is NOT being filled, plus the trail connecting
+  // enterV and exitV through the interior.
+  vertex scratch[MAX_VERTICES];
+  int writeIdx = 0;
   
-  if (newCount <= MAX_VERTICES) {
-    // Use scratch buffer to safely rebuild perimeter
-    vertex scratch[MAX_VERTICES];
-    int writeIdx = 0;
-    
-    if (arcDir == 1) {
-      // Forward arc [startIdx..endIdx) is being replaced with trail
-      // Keep: [0..startIdx) + trail + [endIdx..vertexCount)
-      
-      // Copy [0..startIdx)
-      for (int i = 0; i < startIdx; i++) {
-        scratch[writeIdx++] = perim.vertices[i];
-      }
-      
-      // Copy trail
-      for (int t = 0; t < p.trailCount; t++) {
-        scratch[writeIdx++] = p.trail[t];
-      }
-      
-      // Copy [endIdx..vertexCount)
-      for (int i = endIdx; i < perim.vertexCount; i++) {
-        scratch[writeIdx++] = perim.vertices[i];
-      }
-      
-    } else {
-      // Backward arc [endIdx..vertexCount) + [0..startIdx) is being replaced with trail
-      // Keep: trail + [startIdx..endIdx)
-      
-      // Copy trail
-      for (int t = 0; t < p.trailCount; t++) {
-        scratch[writeIdx++] = p.trail[t];
-      }
-      
-      // Copy [startIdx..endIdx)
-      for (int i = startIdx; i < endIdx; i++) {
-        scratch[writeIdx++] = perim.vertices[i];
-      }
+  // Copy trail (enterV → ... → exitV)
+  for (int t = 0; t < p.trailCount; t++) {
+    scratch[writeIdx++] = p.trail[t];
+  }
+  
+  if (arcDir == 1) {
+    // Forward arc (startIdx → ... → endIdx) is being filled.
+    // Keep backward arc: perimeter vertices from endIdx+1 forward to startIdx (inclusive).
+    // These connect exitV back to enterV the long way around.
+    int idx = (endIdx + 1) % perim.vertexCount;
+    int stop = (startIdx + 1) % perim.vertexCount;
+    while (idx != stop && writeIdx < MAX_VERTICES) {
+      scratch[writeIdx++] = perim.vertices[idx];
+      idx = (idx + 1) % perim.vertexCount;
     }
-    
-    // Copy scratch back to perimeter
-    for (int i = 0; i < writeIdx; i++) {
-      perim.vertices[i] = scratch[i];
+  } else {
+    // Backward arc is being filled.
+    // Keep forward arc: perimeter vertices from startIdx+1 forward to endIdx (inclusive).
+    // These connect enterV to exitV the short way around.
+    int idx = (startIdx + 1) % perim.vertexCount;
+    int stop = (endIdx + 1) % perim.vertexCount;
+    while (idx != stop && writeIdx < MAX_VERTICES) {
+      scratch[writeIdx++] = perim.vertices[idx];
+      idx = (idx + 1) % perim.vertexCount;
     }
   }
   
-  perim.vertexCount = newCount;
+  // Copy scratch back to perimeter
+  for (int i = 0; i < writeIdx; i++) {
+    perim.vertices[i] = scratch[i];
+  }
+  perim.vertexCount = writeIdx;
   p.trailCount = 0;
 }
 
