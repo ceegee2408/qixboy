@@ -310,14 +310,19 @@ void updatePerim() {
   // Determine which arc to fill (the one NOT containing the Qix)
   int startIdx = p.getDrawStartIndex(0);
   int endIdx = p.getDrawEndIndex(0);
+  int arcLen = (endIdx - startIdx + perim.vertexCount) % perim.vertexCount;
   
-  // Test if Qix is inside the forward arc (dir=1) using ray-casting
-  // Cast a horizontal ray from Qix to the right; count arc intersections
+  if (arcLen == 0) {
+    p.trailCount = 0;
+    return; // Player re-entered at same point
+  }
+  
+  // Test if Qix is inside the forward arc using ray-casting
+  // Cast a horizontal ray from Qix to the right; count intersections with arc + trail
   int testY = q.position.gety();
-  int xs[16];
   int xCount = 0;
   
-  // Count intersections of ray from Qix rightward with the arc
+  // Count intersections with forward arc
   int i = startIdx;
   while (i != endIdx) {
     int next = (i + 1) % perim.vertexCount;
@@ -327,7 +332,6 @@ void updatePerim() {
     int minY = min(v1.gety(), v2.gety());
     int maxY = max(v1.gety(), v2.gety());
     if (testY >= minY && testY < maxY && v1.getx() != v2.getx()) {
-      // Edge intersects the ray
       int x = v1.getx() + (testY - v1.gety()) * (v2.getx() - v1.getx()) / (v2.gety() - v1.gety());
       if (x >= q.position.getx()) {
         xCount++;
@@ -336,7 +340,21 @@ void updatePerim() {
     i = next;
   }
   
-  // If odd count, Qix is inside forward arc; use reverse arc (dir=-1)
+  // Count intersections with trail (boundary of claimed territory)
+  for (int t = 0; t < p.trailCount - 1; t++) {
+    vertex v1 = p.trail[t];
+    vertex v2 = p.trail[t + 1];
+    int minY = min(v1.gety(), v2.gety());
+    int maxY = max(v1.gety(), v2.gety());
+    if (testY >= minY && testY < maxY && v1.getx() != v2.getx()) {
+      int x = v1.getx() + (testY - v1.gety()) * (v2.getx() - v1.getx()) / (v2.gety() - v1.gety());
+      if (x >= q.position.getx()) {
+        xCount++;
+      }
+    }
+  }
+  
+  // If odd count, Qix is inside forward arc; fill backward arc (dir=-1) instead
   int arcDir = (xCount % 2 == 1) ? -1 : 1;
   
   // Fill using virtual iteration — no new array needed
@@ -362,41 +380,55 @@ void updatePerim() {
     }
   }
   
-  // Now splice trail into perim.vertices, replacing the arc from startIdx to endIdx
-  // We need to preserve [0..startIdx) and [endIdx..vertexCount)
-  // and insert trail at startIdx
-  
-  // Calculate arc length to remove
-  int arcLen = (endIdx - startIdx + perim.vertexCount) % perim.vertexCount;
+  // Splice trail into perimeter, replacing the arc we just filled
   int newCount = perim.vertexCount - arcLen + p.trailCount;
   
-  if (newCount <= MAX_VERTICES && arcLen > 0) {
-    // Use a small scratch buffer to hold the vertices after endIdx
-    vertex scratch[MAX_VERTICES / 2]; // max 32 vertices after endIdx
-    int scratchCount = 0;
-    
-    // Copy vertices from endIdx to end
-    for (int j = endIdx; j < perim.vertexCount; j++) {
-      scratch[scratchCount++] = perim.vertices[j];
+  if (newCount <= MAX_VERTICES) {
+    if (arcDir == 1) {
+      // Forward arc does NOT contain Qix: remove [startIdx..endIdx), insert trail
+      // Result: [0..startIdx) + trail + [endIdx..vertexCount)
+      
+      int tailLen = perim.vertexCount - endIdx;
+      
+      // Move tail [endIdx..vertexCount) to position (startIdx + p.trailCount)
+      if (tailLen > 0) {
+        // Move in reverse if expanding to avoid overwriting source
+        if (p.trailCount > arcLen) {
+          for (int j = tailLen - 1; j >= 0; j--) {
+            perim.vertices[startIdx + p.trailCount + j] = perim.vertices[endIdx + j];
+          }
+        } else {
+          for (int j = 0; j < tailLen; j++) {
+            perim.vertices[startIdx + p.trailCount + j] = perim.vertices[endIdx + j];
+          }
+        }
+      }
+      
+      // Copy trail into [startIdx..startIdx + p.trailCount)
+      for (int t = 0; t < p.trailCount; t++) {
+        perim.vertices[startIdx + t] = p.trail[t];
+      }
+      
+    } else {
+      // Backward arc does NOT contain Qix: keep [startIdx..endIdx), replace everything else with trail
+      // Result: trail + [startIdx..endIdx)
+      
+      int forwardArcLen = endIdx - startIdx;
+      
+      // Move [startIdx..endIdx) to [p.trailCount..p.trailCount + forwardArcLen)
+      // Move in reverse to avoid overwriting while copying
+      for (int j = forwardArcLen - 1; j >= 0; j--) {
+        perim.vertices[p.trailCount + j] = perim.vertices[startIdx + j];
+      }
+      
+      // Copy trail into [0..p.trailCount)
+      for (int t = 0; t < p.trailCount; t++) {
+        perim.vertices[t] = p.trail[t];
+      }
     }
-    
-    // Write: [0..startIdx) + trail + scratch
-    int writeIdx = startIdx;
-    
-    // Copy trail
-    for (int t = 0; t < p.trailCount; t++) {
-      perim.vertices[writeIdx++] = p.trail[t];
-    }
-    
-    // Copy scratch back
-    for (int s = 0; s < scratchCount; s++) {
-      perim.vertices[writeIdx++] = scratch[s];
-    }
-    
-    perim.vertexCount = newCount;
   }
   
-  // Reset trail
+  perim.vertexCount = newCount;
   p.trailCount = 0;
 }
 
