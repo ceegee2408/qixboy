@@ -307,7 +307,97 @@ void updateDrawAllowance(byte input) {
 }
 
 void updatePerim() {
+  // Determine which arc to fill (the one NOT containing the Qix)
+  int startIdx = p.getDrawStartIndex(0);
+  int endIdx = p.getDrawEndIndex(0);
   
+  // Test if Qix is inside the forward arc (dir=1) using ray-casting
+  // Cast a horizontal ray from Qix to the right; count arc intersections
+  int testY = q.position.gety();
+  int xs[16];
+  int xCount = 0;
+  
+  // Count intersections of ray from Qix rightward with the arc
+  int i = startIdx;
+  while (i != endIdx) {
+    int next = (i + 1) % perim.vertexCount;
+    vertex v1 = perim.vertices[i];
+    vertex v2 = perim.vertices[next];
+    
+    int minY = min(v1.gety(), v2.gety());
+    int maxY = max(v1.gety(), v2.gety());
+    if (testY >= minY && testY < maxY && v1.getx() != v2.getx()) {
+      // Edge intersects the ray
+      int x = v1.getx() + (testY - v1.gety()) * (v2.getx() - v1.getx()) / (v2.gety() - v1.gety());
+      if (x >= q.position.getx()) {
+        xCount++;
+      }
+    }
+    i = next;
+  }
+  
+  // If odd count, Qix is inside forward arc; use reverse arc (dir=-1)
+  int arcDir = (xCount % 2 == 1) ? -1 : 1;
+  
+  // Fill using virtual iteration — no new array needed
+  for (int y = 0; y < HEIGHT; y++) {
+    int xs[16];
+    int xCount = 0;
+    findIntersections(y, startIdx, endIdx, arcDir, xs, xCount);
+    
+    // Sort xs (insertion sort, small n)
+    for (int a = 1; a < xCount; a++) {
+      int key = xs[a];
+      int b = a - 1;
+      while (b >= 0 && xs[b] > key) {
+        xs[b + 1] = xs[b];
+        b--;
+      }
+      xs[b + 1] = key;
+    }
+    
+    // Fill between pairs
+    for (int a = 0; a + 1 < xCount; a += 2) {
+      arduboy.drawFastHLine(xs[a], y, xs[a + 1] - xs[a]);
+    }
+  }
+  
+  // Now splice trail into perim.vertices, replacing the arc from startIdx to endIdx
+  // We need to preserve [0..startIdx) and [endIdx..vertexCount)
+  // and insert trail at startIdx
+  
+  // Calculate arc length to remove
+  int arcLen = (endIdx - startIdx + perim.vertexCount) % perim.vertexCount;
+  int newCount = perim.vertexCount - arcLen + p.trailCount;
+  
+  if (newCount <= MAX_VERTICES && arcLen > 0) {
+    // Use a small scratch buffer to hold the vertices after endIdx
+    vertex scratch[MAX_VERTICES / 2]; // max 32 vertices after endIdx
+    int scratchCount = 0;
+    
+    // Copy vertices from endIdx to end
+    for (int j = endIdx; j < perim.vertexCount; j++) {
+      scratch[scratchCount++] = perim.vertices[j];
+    }
+    
+    // Write: [0..startIdx) + trail + scratch
+    int writeIdx = startIdx;
+    
+    // Copy trail
+    for (int t = 0; t < p.trailCount; t++) {
+      perim.vertices[writeIdx++] = p.trail[t];
+    }
+    
+    // Copy scratch back
+    for (int s = 0; s < scratchCount; s++) {
+      perim.vertices[writeIdx++] = scratch[s];
+    }
+    
+    perim.vertexCount = newCount;
+  }
+  
+  // Reset trail
+  p.trailCount = 0;
 }
 
 bool isQixInsidePerimeter() {
