@@ -354,8 +354,8 @@ void updatePerim() {
     }
   }
   
-  // If odd count, Qix is inside forward arc; fill backward arc (dir=-1) instead
-  int arcDir = (xCount % 2 == 1) ? -1 : 1;
+  // If odd count, Qix is inside forward arc; fill forward arc (dir=1) instead
+  int arcDir = (xCount % 2 == 1) ? 1 : -1;
   
   // Fill using virtual iteration — no new array needed
   for (int y = 0; y < HEIGHT; y++) {
