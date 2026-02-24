@@ -12,28 +12,11 @@ int sawtooth(uint16_t phase, uint16_t period, int amplitude) {
   return (int)(scaled / period) - amplitude;
 }
 
-int bidirectionalSaw(uint16_t phase, uint16_t period, int amplitude) {
-  if (period < 2) return 0;
-  int a = sawtooth(phase, period, amplitude);
-  int b = sawtooth(phase + period / 2, period, amplitude);
-  return (a - b) / 2;
-}
-
 vertex buildQixPoint(uint16_t phase, int baseX, int baseY,
-                     uint16_t xP1, int xA1, uint16_t xP2, int xA2, uint16_t xP3, int xA3,
-                     uint16_t yP1, int yA1, uint16_t yP2, int yA2, uint16_t yP3, int yA3,
-                     uint8_t phaseMul, uint16_t phaseOffset) {
-  uint16_t p = (uint16_t)(phase * phaseMul + phaseOffset);
-
-  int x = baseX
-        + bidirectionalSaw(p, xP1, xA1)
-        - bidirectionalSaw(p + 17, xP2, xA2)
-        + sawtooth(p + 47, xP3, xA3);
-
-  int y = baseY
-        + bidirectionalSaw(p + 9, yP1, yA1)
-        + sawtooth(p + 29, yP2, yA2)
-        - bidirectionalSaw(p + 63, yP3, yA3);
+                     uint16_t p1, int a1, uint16_t p2, int a2,
+                     uint16_t p3, int a3, uint16_t p4, int a4) {
+  int x = baseX + sawtooth(phase, p1, a1) + sawtooth(phase, p2, a2);
+  int y = baseY + sawtooth(phase, p3, a3) + sawtooth(phase, p4, a4);
 
   if (x < 0) x = 0;
   if (x >= WIDTH) x = WIDTH - 1;
@@ -54,30 +37,28 @@ bool qixSegmentInside(vertex a, vertex b) {
 } // namespace
 
 void updateQix() {
-  uint16_t nextPhase = q.phase + (uint16_t)q.speed;
+  uint16_t nextPhase = q.phase + q.speed;
 
-  for (uint8_t attempt = 0; attempt < 16; attempt++) {
-    uint16_t candidatePhase = nextPhase + attempt * 3;
-
-    vertex candidateA = buildQixPoint(candidatePhase,
+  for (uint8_t attempt = 0; attempt < 10; attempt++) {
+    vertex candidateA = buildQixPoint(nextPhase,
                                       WIDTH / 2, HEIGHT / 2,
-                                      53, 19, 31, 11, 17, 6,
-                                      47, 14, 29, 9, 19, 5,
-                                      3, 0);
+                                      53, 18, 29, 10,
+                                      47, 12, 23, 7);
 
-    vertex candidateB = buildQixPoint(candidatePhase,
+    vertex candidateB = buildQixPoint(nextPhase + 31,
                                       WIDTH / 2, HEIGHT / 2,
-                                      61, 18, 37, 10, 23, 7,
-                                      43, 13, 27, 8, 21, 6,
-                                      5, 71);
+                                      61, 16, 37, 11,
+                                      41, 13, 19, 8);
 
     if (qixSegmentInside(candidateA, candidateB)) {
-      q.phase = candidatePhase;
+      q.phase = nextPhase;
       q.segmentA = candidateA;
       q.segmentB = candidateB;
       q.position = vertex((candidateA.getx() + candidateB.getx()) / 2,
                           (candidateA.gety() + candidateB.gety()) / 2);
       return;
     }
+
+    nextPhase += 1;
   }
 }

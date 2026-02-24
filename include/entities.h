@@ -114,7 +114,7 @@ class qix {
     vertex position;
     vertex segmentA;
     vertex segmentB;
-    int speed = 2;
+    int speed = 1;
     uint16_t phase = 0;
     
     qix() {
