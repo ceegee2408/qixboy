@@ -16,6 +16,7 @@
 #include "geometry.h"
 #include "rendering.h"
 #include "player_logic.h"
+#include "qix_logic.h"
 
 // Global game objects
 player p;
@@ -56,7 +57,7 @@ void updateScreen() {
   byte input = getInput();
   updateActiveDirection(input);
   updatePlayer(input);
-  // TODO: update qix
+  updateQix();
   // TODO: update sparx
   // TODO: update fill
   // TODO: check for death

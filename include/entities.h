@@ -112,10 +112,15 @@ class perimeter {
 class qix {
   public:
     vertex position;
+    vertex segmentA;
+    vertex segmentB;
     int speed = 1;
+    uint16_t phase = 0;
     
     qix() {
       position = vertex(WIDTH / 2, HEIGHT / 2);
+      segmentA = vertex(WIDTH / 2 - 5, HEIGHT / 2 - 3);
+      segmentB = vertex(WIDTH / 2 + 5, HEIGHT / 2 + 3);
     }
 };
 
