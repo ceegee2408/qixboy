@@ -384,47 +384,47 @@ void updatePerim() {
   int newCount = perim.vertexCount - arcLen + p.trailCount;
   
   if (newCount <= MAX_VERTICES) {
+    // Use scratch buffer to safely rebuild perimeter
+    vertex scratch[MAX_VERTICES];
+    int writeIdx = 0;
+    
     if (arcDir == 1) {
-      // Forward arc does NOT contain Qix: remove [startIdx..endIdx), insert trail
-      // Result: [0..startIdx) + trail + [endIdx..vertexCount)
+      // Forward arc [startIdx..endIdx) is being replaced with trail
+      // Keep: [0..startIdx) + trail + [endIdx..vertexCount)
       
-      int tailLen = perim.vertexCount - endIdx;
-      
-      // Move tail [endIdx..vertexCount) to position (startIdx + p.trailCount)
-      if (tailLen > 0) {
-        // Move in reverse if expanding to avoid overwriting source
-        if (p.trailCount > arcLen) {
-          for (int j = tailLen - 1; j >= 0; j--) {
-            perim.vertices[startIdx + p.trailCount + j] = perim.vertices[endIdx + j];
-          }
-        } else {
-          for (int j = 0; j < tailLen; j++) {
-            perim.vertices[startIdx + p.trailCount + j] = perim.vertices[endIdx + j];
-          }
-        }
+      // Copy [0..startIdx)
+      for (int i = 0; i < startIdx; i++) {
+        scratch[writeIdx++] = perim.vertices[i];
       }
       
-      // Copy trail into [startIdx..startIdx + p.trailCount)
+      // Copy trail
       for (int t = 0; t < p.trailCount; t++) {
-        perim.vertices[startIdx + t] = p.trail[t];
+        scratch[writeIdx++] = p.trail[t];
+      }
+      
+      // Copy [endIdx..vertexCount)
+      for (int i = endIdx; i < perim.vertexCount; i++) {
+        scratch[writeIdx++] = perim.vertices[i];
       }
       
     } else {
-      // Backward arc does NOT contain Qix: keep [startIdx..endIdx), replace everything else with trail
-      // Result: trail + [startIdx..endIdx)
+      // Backward arc [endIdx..vertexCount) + [0..startIdx) is being replaced with trail
+      // Keep: trail + [startIdx..endIdx)
       
-      int forwardArcLen = endIdx - startIdx;
-      
-      // Move [startIdx..endIdx) to [p.trailCount..p.trailCount + forwardArcLen)
-      // Move in reverse to avoid overwriting while copying
-      for (int j = forwardArcLen - 1; j >= 0; j--) {
-        perim.vertices[p.trailCount + j] = perim.vertices[startIdx + j];
-      }
-      
-      // Copy trail into [0..p.trailCount)
+      // Copy trail
       for (int t = 0; t < p.trailCount; t++) {
-        perim.vertices[t] = p.trail[t];
+        scratch[writeIdx++] = p.trail[t];
       }
+      
+      // Copy [startIdx..endIdx)
+      for (int i = startIdx; i < endIdx; i++) {
+        scratch[writeIdx++] = perim.vertices[i];
+      }
+    }
+    
+    // Copy scratch back to perimeter
+    for (int i = 0; i < writeIdx; i++) {
+      perim.vertices[i] = scratch[i];
     }
   }
   
