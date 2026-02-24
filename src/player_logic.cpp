@@ -102,18 +102,31 @@ void drawMove(byte input, bool speed) {
           p.addTrailVertex(p.position);
           // Update the perimeter shape with the trail
           updatePerim();
-          // Re-find player position on the new perimeter
+          // Re-find player position on the new perimeter — check exact corners first
           for (int j = 0; j < perim.vertexCount; j++) {
             vertex nv1 = perim.vertices[j];
             vertex nv2 = perim.vertices[(j + 1) % perim.vertexCount];
+            // Exact vertex match -> collapse to corner
+            if (compareVertices(p.position, nv1)) {
+              p.setPerimIndex(0, j);
+              p.setPerimIndex(1, j);
+              break;
+            }
+            int nextIdx = (j + 1) % perim.vertexCount;
+            if (compareVertices(p.position, nv2)) {
+              p.setPerimIndex(0, nextIdx);
+              p.setPerimIndex(1, nextIdx);
+              break;
+            }
+            // Mid-edge match
             if (pointOnSegment(p.position, nv1, nv2)) {
               p.setPerimIndex(0, j);
-              p.setPerimIndex(1, (j + 1) % perim.vertexCount);
+              p.setPerimIndex(1, nextIdx);
               break;
             }
           }
-          updatePerimIndex(); // Check if at a corner
-          updateCanMove(); // This clears draw mode bits and sets perimeter movement
+          // Perimeter indices are normalized above — compute allowed moves
+          updateCanMove();
           return; // Exit drawMove entirely to avoid updateCanDraw overwriting allowedMoves
         }
       }

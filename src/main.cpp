@@ -52,6 +52,7 @@ void loop() {
     // 3. Save pixels at new position, then draw sprite
     saveBackground(p.position);
     drawPlayer();
+    drawDebug();
 
     arduboy.display();
 }

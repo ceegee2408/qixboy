@@ -77,16 +77,12 @@ void drawDotLine(vertex v1, vertex v2) {
 
 void drawPerimeter() {
   for (int i = 0; i < perim.vertexCount; i++) {
-    // if horizontal line, draw fast hline; otherwise draw fast vline
     vertex v1 = perim.vertices[i];
     vertex v2 = perim.vertices[(i + 1) % perim.vertexCount];
     if (v1.gety() == v2.gety()) {
-      arduboy.drawFastHLine(v1.getx(), v1.gety(), abs(v2.getx() - v1.getx()));
+      arduboy.drawFastHLine(min(v1.getx(), v2.getx()), v1.gety(), abs(v2.getx() - v1.getx()));
     } else if (v1.getx() == v2.getx()) {
-      arduboy.drawFastVLine(v1.getx(), v1.gety(), abs(v2.gety() - v1.gety()));
-    } else {
-      //if there is a non h or v line, this is an error, do not render
-      //enableDebug(); #TODO add debug messages
+      arduboy.drawFastVLine(v1.getx(), min(v1.gety(), v2.gety()), abs(v2.gety() - v1.gety()));
     }
   }
 }
@@ -126,19 +122,12 @@ void drawTrail() {
 
 void drawDebug() {
 #if DEBUG
+  // Clear a small area in the top-left corner
+  arduboy.fillRect(WIDTH / 2, HEIGHT / 2, 40, 8, BLACK);
   arduboy.setCursor(WIDTH / 2, HEIGHT / 2);
-  arduboy.print(F("P:"));
-  arduboy.print(p.position.getx());
-  arduboy.print(F(","));
-  arduboy.print(p.position.gety());
-  arduboy.setCursor(WIDTH / 2, HEIGHT / 2 + 8);
-  arduboy.print(F("E:"));
   arduboy.print(p.getPerimIndex(0));
   arduboy.print(F("-"));
   arduboy.print(p.getPerimIndex(1));
-  arduboy.setCursor(WIDTH / 2, HEIGHT / 2 + 16);
-  arduboy.print(F("M:"));
-  arduboy.print(p.allowedMoves, BIN);
 #endif
 }
 
