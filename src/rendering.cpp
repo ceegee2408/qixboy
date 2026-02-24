@@ -38,9 +38,8 @@ void drawPlayer() {
 }
 
 void drawQix() {
-  // Draw an X shape for the qix
-  arduboy.drawLine(q.position.getx() - 2, q.position.gety() - 2, q.position.getx() + 2, q.position.gety() + 2);
-  arduboy.drawLine(q.position.getx() + 2, q.position.gety() - 2, q.position.getx() - 2, q.position.gety() + 2);
+  drawLine(q.segmentA, q.segmentB);
+  arduboy.drawCircle(q.position.getx(), q.position.gety(), 1);
 }
 
 void drawTrail() {
