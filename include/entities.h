@@ -107,6 +107,31 @@ class perimeter {
         vertexCount--;
       }
     }
+
+    // Remove redundant collinear vertices (axis-aligned geometry only).
+    // A vertex is redundant when its predecessor and successor lie on the
+    // same horizontal or vertical line as itself.  The minimum of 4
+    // vertices (rectangle) is preserved.
+    void removeCollinear() {
+      int i = 0;
+      while (i < vertexCount && vertexCount > 4) {
+        int prev = (i - 1 + vertexCount) % vertexCount;
+        int next = (i + 1) % vertexCount;
+        vertex vPrev = vertices[prev];
+        vertex vCurr = vertices[i];
+        vertex vNext = vertices[next];
+        bool collinear =
+          (vPrev.getx() == vCurr.getx() && vCurr.getx() == vNext.getx()) ||
+          (vPrev.gety() == vCurr.gety() && vCurr.gety() == vNext.gety());
+        if (collinear) {
+          removeVertex(i);
+          // Re-check position i — it now holds the old i+1 vertex,
+          // which may itself be collinear with its new neighbours.
+        } else {
+          i++;
+        }
+      }
+    }
 };
 
 class qix {

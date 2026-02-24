@@ -290,6 +290,21 @@ void updatePerimIndex() {
       }
     }
   }
+
+  // Final corner-collapse: if we landed exactly on one of the tracked vertices
+  // (e.g. after a 1- or 2-pixel adjacent-edge transition), collapse both indices
+  // to that vertex so updateCanMove() doesn't compute getDirection(pos, pos) == 0.
+  {
+    int fi0 = p.getPerimIndex(0);
+    int fi1 = p.getPerimIndex(1);
+    vertex w0 = perim.vertices[fi0];
+    vertex w1 = perim.vertices[fi1];
+    if (p.position.getx() == w0.getx() && p.position.gety() == w0.gety()) {
+      p.setPerimIndex(1, fi0);
+    } else if (p.position.getx() == w1.getx() && p.position.gety() == w1.gety()) {
+      p.setPerimIndex(0, fi1);
+    }
+  }
 }
 
 void updateCanMove() {
@@ -453,7 +468,7 @@ void updatePerim() {
     if (startIdx == startIdxNext) {
       idx = (idx + 1) % perim.vertexCount;
     }
-    while (idx != endIdxNext && writeIdx < MAX_VERTICES) {
+    while (idx != endIdx && writeIdx < MAX_VERTICES) {
       scratch[writeIdx++] = perim.vertices[idx];
       idx = (idx + 1) % perim.vertexCount;
     }
@@ -471,6 +486,7 @@ void updatePerim() {
     perim.vertices[i] = scratch[i];
   }
   perim.vertexCount = writeIdx;
+  perim.removeCollinear();
   p.trailCount = 0;
 }
 

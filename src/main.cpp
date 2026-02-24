@@ -25,40 +25,34 @@ sparx s[4];
 Arduboy2 arduboy;
 uint16_t frameCounter = 0;
 
-void updateScreen();
-
 void setup() {
-  arduboy.boot();
-  arduboy.setFrameRate(60);
-  arduboy.clear();
-  updateCanMove();
+    arduboy.boot();
+    arduboy.setFrameRate(60);
+    arduboy.clear();
+    drawPerimeter();
+    updateCanMove();
+    saveBackground(p.position);
+    drawPlayer();
+    arduboy.display();
 }
 
 void loop() {
-  if (!arduboy.nextFrame()) {
-    return;
-  }
-  frameCounter++;
-  if (frameCounter >= 240) {
-    frameCounter = 0;
-  }
-  arduboy.clear();
-  drawFill();
-  drawPerimeter();
-  drawPlayer();
-  drawQix();
-  drawDebug();
-  updateScreen();
-  arduboy.display();
-}
+    if (!arduboy.nextFrame()) return;
+    frameCounter++;
+    if (frameCounter >= 240) frameCounter = 0;
 
-void updateScreen() {
-  byte input = getInput();
-  updateActiveDirection(input);
-  updatePlayer(input);
-  // TODO: update qix
-  // TODO: update sparx
-  // TODO: update fill
-  // TODO: check for death
+    // 1. Restore pixels behind sprite at old position
+    restoreBackground();
+
+    // 2. Move player
+    byte input = getInput();
+    updateActiveDirection(input);
+    updatePlayer(input);
+
+    // 3. Save pixels at new position, then draw sprite
+    saveBackground(p.position);
+    drawPlayer();
+
+    arduboy.display();
 }
 

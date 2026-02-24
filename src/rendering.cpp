@@ -1,7 +1,59 @@
 #include "rendering.h"
 
+// Diamond outline, SPRITE_SIZE x SPRITE_SIZE (5x5), MSB = leftmost pixel.
+//   Row 0:  00100  = 0x20
+//   Row 1:  01010  = 0x50
+//   Row 2:  10001  = 0x88
+//   Row 3:  01010  = 0x50
+//   Row 4:  00100  = 0x20
+static const uint8_t PROGMEM playerSpriteRows[SPRITE_SIZE] = {
+    0x20, 0x50, 0x88, 0x50, 0x20
+};
+
+// Packs SPRITE_SIZE^2 (25) pixel states into a uint32_t.
+static_assert(SPRITE_SIZE * SPRITE_SIZE <= 32,
+              "SPRITE_SIZE too large for uint32_t background buffer");
+
+static uint32_t bgBuffer  = 0;
+static vertex   bgSavedPos;
+static bool     bgSaved   = false;
+
+void saveBackground(vertex pos) {
+    bgSavedPos = pos;
+    bgSaved    = true;
+    bgBuffer   = 0;
+    int sx = pos.getx() - PLAYER_SIZE;
+    int sy = pos.gety() - PLAYER_SIZE;
+    for (int row = 0; row < SPRITE_SIZE; row++) {
+        for (int col = 0; col < SPRITE_SIZE; col++) {
+            int px = sx + col, py = sy + row;
+            if (px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
+                if (arduboy.getPixel(px, py)) {
+                    bgBuffer |= (1UL << (row * SPRITE_SIZE + col));
+                }
+            }
+        }
+    }
+}
+
+void restoreBackground() {
+    if (!bgSaved) return;
+    int sx = bgSavedPos.getx() - PLAYER_SIZE;
+    int sy = bgSavedPos.gety() - PLAYER_SIZE;
+    for (int row = 0; row < SPRITE_SIZE; row++) {
+        for (int col = 0; col < SPRITE_SIZE; col++) {
+            int px = sx + col, py = sy + row;
+            if (px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
+                bool lit = (bgBuffer >> (row * SPRITE_SIZE + col)) & 1;
+                arduboy.drawPixel(px, py, lit ? WHITE : BLACK);
+            }
+        }
+    }
+    bgSaved = false;
+}
+
 void drawLine(vertex v1, vertex v2) {
-  arduboy.drawLine(v1.getx(), v1.gety(), v2.getx(), v2.gety());
+    arduboy.drawLine(v1.getx(), v1.gety(), v2.getx(), v2.gety());
 }
 
 void drawDotLine(vertex v1, vertex v2) {
@@ -25,16 +77,34 @@ void drawDotLine(vertex v1, vertex v2) {
 
 void drawPerimeter() {
   for (int i = 0; i < perim.vertexCount; i++) {
-    drawLine(perim.vertices[i], perim.vertices[(i + 1) % perim.vertexCount]);
+    // if horizontal line, draw fast hline; otherwise draw fast vline
+    vertex v1 = perim.vertices[i];
+    vertex v2 = perim.vertices[(i + 1) % perim.vertexCount];
+    if (v1.gety() == v2.gety()) {
+      arduboy.drawFastHLine(v1.getx(), v1.gety(), abs(v2.getx() - v1.getx()));
+    } else if (v1.getx() == v2.getx()) {
+      arduboy.drawFastVLine(v1.getx(), v1.gety(), abs(v2.gety() - v1.gety()));
+    } else {
+      //if there is a non h or v line, this is an error, do not render
+      //enableDebug(); #TODO add debug messages
+    }
   }
 }
 
 void drawPlayer() {
-  // Draw diamond shape for player
-  arduboy.drawLine(p.position.getx(), p.position.gety() - PLAYER_SIZE, p.position.getx() - PLAYER_SIZE, p.position.gety());
-  arduboy.drawLine(p.position.getx() - PLAYER_SIZE, p.position.gety(), p.position.getx(), p.position.gety() + PLAYER_SIZE);
-  arduboy.drawLine(p.position.getx(), p.position.gety() + PLAYER_SIZE, p.position.getx() + PLAYER_SIZE, p.position.gety());
-  arduboy.drawLine(p.position.getx() + PLAYER_SIZE, p.position.gety(), p.position.getx(), p.position.gety() - PLAYER_SIZE);
+    int sx = p.position.getx() - PLAYER_SIZE;
+    int sy = p.position.gety() - PLAYER_SIZE;
+    for (int row = 0; row < SPRITE_SIZE; row++) {
+        uint8_t bits = pgm_read_byte(&playerSpriteRows[row]);
+        for (int col = 0; col < SPRITE_SIZE; col++) {
+            if (bits & (0x80 >> col)) {
+                int px = sx + col, py = sy + row;
+                if (px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
+                    arduboy.drawPixel(px, py, WHITE);
+                }
+            }
+        }
+    }
 }
 
 void drawQix() {
