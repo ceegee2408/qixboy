@@ -1,15 +1,11 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-// Screen dimensions (from Arduboy2)
-// WIDTH = 128
-// HEIGHT = 64
-
-// Game constants
 #define NUM_LIVES 3
 #define PLAYER_SIZE 2
-#define FAST_MOVE 3  // Move every 3 frames
-#define SLOW_MOVE 4  // Move every 4 frames
+#define SPRITE_SIZE (PLAYER_SIZE * 2 + 1)  // 5x5; must satisfy SPRITE_SIZE^2 <= 32
+#define FAST_MOVE 3
+#define SLOW_MOVE 4
 #define MAX_VERTICES 64
 #define DEBUG 1
 

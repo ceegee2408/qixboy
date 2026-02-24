@@ -13,7 +13,9 @@ extern player p;
 extern perimeter perim;
 extern qix q;
 
-// Drawing functions
+void saveBackground(vertex pos);
+void restoreBackground();
+
 void drawLine(vertex v1, vertex v2);
 void drawDotLine(vertex v1, vertex v2);
 void drawPerimeter();
