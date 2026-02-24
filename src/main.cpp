@@ -43,7 +43,7 @@ void loop() {
     frameCounter = 0;
   }
   arduboy.clear();
-  // TODO: fillArea(); // Fill claimed territory (outside perimeter)
+  drawFill();
   drawPerimeter();
   drawPlayer();
   drawQix();

@@ -28,6 +28,7 @@ void updateCanMove();
 void updateCanDraw();
 void updateDrawAllowance(byte input);
 void updatePerim();
+void reverseVertices(vertex* verts, int count);
 bool isQixInsidePerimeter();
 
 #endif // PLAYER_LOGIC_H

@@ -72,6 +72,63 @@ void drawDebug() {
 #endif
 }
 
+void drawFill() {
+  // Fill claimed territory (everything outside the perimeter polygon)
+  // Pre-compute polygon y-range so scanlines fully outside are filled quickly
+  int polyMinY = HEIGHT, polyMaxY = 0;
+  for (int i = 0; i < perim.vertexCount; i++) {
+    int vy = perim.vertices[i].gety();
+    if (vy < polyMinY) polyMinY = vy;
+    if (vy > polyMaxY) polyMaxY = vy;
+  }
+
+  for (int y = 0; y < HEIGHT; y++) {
+    if (y < polyMinY || y >= polyMaxY) {
+      // Scanline is outside the polygon's vertical extent — fill entire line
+      arduboy.drawFastHLine(0, y, WIDTH);
+      continue;
+    }
+
+    int xs[16];
+    int xCount = 0;
+    for (int i = 0; i < perim.vertexCount; i++) {
+      vertex v1 = perim.vertices[i];
+      vertex v2 = perim.vertices[(i + 1) % perim.vertexCount];
+      int minY = min(v1.gety(), v2.gety());
+      int maxY = max(v1.gety(), v2.gety());
+      if (y >= minY && y < maxY) {
+        // Only vertical edges contribute; horizontals excluded by y-range
+        if (xCount < 16) xs[xCount++] = v1.getx();
+      }
+    }
+
+    // Sort (insertion sort, small n)
+    for (int a = 1; a < xCount; a++) {
+      int key = xs[a];
+      int b = a - 1;
+      while (b >= 0 && xs[b] > key) { xs[b + 1] = xs[b]; b--; }
+      xs[b + 1] = key;
+    }
+
+    // Fill outside the polygon (complement of interior)
+    // Even-odd rule: starts outside, toggles at each crossing
+    // Outside spans: [0,xs[0]), [xs[1],xs[2]), ..., [xs[last],WIDTH)
+    if (xCount >= 2) {
+      if (xs[0] > 0)
+        arduboy.drawFastHLine(0, y, xs[0]);
+      for (int a = 1; a + 1 < xCount; a += 2) {
+        if (xs[a + 1] > xs[a])
+          arduboy.drawFastHLine(xs[a], y, xs[a + 1] - xs[a]);
+      }
+      if (xs[xCount - 1] < WIDTH)
+        arduboy.drawFastHLine(xs[xCount - 1], y, WIDTH - xs[xCount - 1]);
+    } else if (xCount == 0) {
+      // Inside y-range but no crossings — treat as fully outside
+      arduboy.drawFastHLine(0, y, WIDTH);
+    }
+  }
+}
+
 void scanlineFill(vertex* verts, int count) {
   for (int y = 0; y < HEIGHT; y++) {
     int xs[16];

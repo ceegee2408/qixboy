@@ -21,6 +21,7 @@ void drawPlayer();
 void drawQix();
 void drawTrail();
 void drawDebug();
+void drawFill();
 void scanlineFill(vertex* verts, int count);
 
 #endif // RENDERING_H

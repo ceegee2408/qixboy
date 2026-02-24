@@ -306,117 +306,80 @@ void updateDrawAllowance(byte input) {
   }
 }
 
+void reverseVertices(vertex* verts, int count) {
+  for (int i = 0; i < count / 2; i++) {
+    vertex temp = verts[i];
+    verts[i] = verts[count - 1 - i];
+    verts[count - 1 - i] = temp;
+  }
+}
+
 void updatePerim() {
-  // Determine which arc to fill (the one NOT containing the Qix)
+  if (p.trailCount < 2) {
+    p.trailCount = 0;
+    return;
+  }
+
   int startIdx = p.getDrawStartIndex(0);
   int endIdx = p.getDrawEndIndex(0);
-  int arcLen = (endIdx - startIdx + perim.vertexCount) % perim.vertexCount;
-  
-  if (arcLen == 0) {
-    p.trailCount = 0;
-    return; // Player re-entered at same point
+
+  // Normalize so startIdx <= endIdx. If we swap, reverse the trail
+  // so trail[0] is still the vertex adjacent to perim[startIdx].
+  if (endIdx < startIdx) {
+    int temp = startIdx;
+    startIdx = endIdx;
+    endIdx = temp;
+    reverseVertices(p.trail, p.trailCount);
   }
-  
-  // Test if Qix is inside the forward arc using ray-casting
-  // Cast a horizontal ray from Qix to the right; count intersections with arc + trail
-  int testY = q.position.gety();
-  int xCount = 0;
-  
-  // Count intersections with forward arc
-  int i = startIdx;
-  while (i != endIdx) {
-    int next = (i + 1) % perim.vertexCount;
-    vertex v1 = perim.vertices[i];
-    vertex v2 = perim.vertices[next];
-    
-    int minY = min(v1.gety(), v2.gety());
-    int maxY = max(v1.gety(), v2.gety());
-    if (testY >= minY && testY < maxY) {
-      // Axis-aligned edges only: vertical edges have constant x, horizontal excluded by y-range
-      int x = v1.getx();
-      if (x >= q.position.getx()) {
-        xCount++;
-      }
-    }
-    i = next;
-  }
-  
-  // Count intersections with trail (boundary of claimed territory)
-  for (int t = 0; t < p.trailCount - 1; t++) {
-    vertex v1 = p.trail[t];
-    vertex v2 = p.trail[t + 1];
-    int minY = min(v1.gety(), v2.gety());
-    int maxY = max(v1.gety(), v2.gety());
-    if (testY >= minY && testY < maxY) {
-      // Axis-aligned edges only: vertical edges have constant x, horizontal excluded by y-range
-      int x = v1.getx();
-      if (x >= q.position.getx()) {
-        xCount++;
-      }
-    }
-  }
-  
-  // If odd count, Qix is inside forward arc; fill the OTHER arc (away from Qix)
-  int arcDir = (xCount % 2 == 1) ? -1 : 1;
-  
-  // Fill using virtual iteration — no new array needed
-  for (int y = 0; y < HEIGHT; y++) {
-    int xs[16];
-    int xCount = 0;
-    findIntersections(y, startIdx, endIdx, arcDir, xs, xCount);
-    
-    // Sort xs (insertion sort, small n)
-    for (int a = 1; a < xCount; a++) {
-      int key = xs[a];
-      int b = a - 1;
-      while (b >= 0 && xs[b] > key) {
-        xs[b + 1] = xs[b];
-        b--;
-      }
-      xs[b + 1] = key;
-    }
-    
-    // Fill between pairs
-    for (int a = 0; a + 1 < xCount; a += 2) {
-      arduboy.drawFastHLine(xs[a], y, xs[a + 1] - xs[a]);
-    }
-  }
-  
-  // Splice trail into perimeter, replacing the arc we just filled.
-  // The enter point is on edge (v[startIdx], v[startIdx+1]).
-  // The exit  point is on edge (v[endIdx],   v[endIdx+1]).
-  // We keep the arc that is NOT being filled, plus the trail connecting
-  // enterV and exitV through the interior.
+  // Note: startIdx == endIdx is fine — it means same-edge claim.
+  // The "forward arc" [startIdx..endIdx] has 0 intermediate vertices,
+  // and the "backward arc" has all of them. Both branches handle this.
+
+  // Build a test polygon: trail + backward arc (endIdx → ... → startIdx)
+  // to check which side the Qix is on.
   vertex scratch[MAX_VERTICES];
   int writeIdx = 0;
-  
-  // Copy trail (enterV → ... → exitV)
-  for (int t = 0; t < p.trailCount; t++) {
-    scratch[writeIdx++] = p.trail[t];
+
+  for (int i = 0; i < p.trailCount && writeIdx < MAX_VERTICES; i++) {
+    scratch[writeIdx++] = p.trail[i];
   }
-  
-  if (arcDir == 1) {
-    // Forward arc (startIdx → ... → endIdx) is being filled.
-    // Keep backward arc: perimeter vertices from endIdx+1 forward to startIdx (inclusive).
-    // These connect exitV back to enterV the long way around.
-    int idx = (endIdx + 1) % perim.vertexCount;
-    int stop = (startIdx + 1) % perim.vertexCount;
-    while (idx != stop && writeIdx < MAX_VERTICES) {
+  int idx = endIdx;
+  while (idx != startIdx && writeIdx < MAX_VERTICES) {
+    scratch[writeIdx++] = perim.vertices[idx];
+    idx = (idx + 1) % perim.vertexCount;
+  }
+
+  bool qixInTestPoly = isInsidePolygon(q.position, scratch, writeIdx);
+
+  // Rebuild the perimeter into scratch.
+  // We always output: trail + kept arc vertices.
+  // If Qix is inside test polygon → keep the test polygon side (trail + backward arc)
+  //   → that's already in scratch, just use it.
+  // If Qix is outside test polygon → keep trail + forward arc.
+  writeIdx = 0;
+
+  if (qixInTestPoly) {
+    // Keep backward arc: trail + vertices from endIdx forward to startIdx
+    for (int i = 0; i < p.trailCount && writeIdx < MAX_VERTICES; i++) {
+      scratch[writeIdx++] = p.trail[i];
+    }
+    idx = endIdx;
+    while (idx != startIdx && writeIdx < MAX_VERTICES) {
       scratch[writeIdx++] = perim.vertices[idx];
       idx = (idx + 1) % perim.vertexCount;
     }
   } else {
-    // Backward arc is being filled.
-    // Keep forward arc: perimeter vertices from startIdx+1 forward to endIdx (inclusive).
-    // These connect enterV to exitV the short way around.
-    int idx = (startIdx + 1) % perim.vertexCount;
-    int stop = (endIdx + 1) % perim.vertexCount;
-    while (idx != stop && writeIdx < MAX_VERTICES) {
-      scratch[writeIdx++] = perim.vertices[idx];
-      idx = (idx + 1) % perim.vertexCount;
+    // Keep forward arc: vertices from startIdx to endIdx + reversed trail
+    for (int i = startIdx; i <= endIdx && writeIdx < MAX_VERTICES; i++) {
+      scratch[writeIdx++] = perim.vertices[i];
+    }
+    // Trail goes exitV → ... → enterV, but we need endIdx→trail→startIdx,
+    // so append trail in reverse (exitV is trail[last], enterV is trail[0]).
+    for (int i = p.trailCount - 1; i >= 0 && writeIdx < MAX_VERTICES; i--) {
+      scratch[writeIdx++] = p.trail[i];
     }
   }
-  
+
   // Copy scratch back to perimeter
   for (int i = 0; i < writeIdx; i++) {
     perim.vertices[i] = scratch[i];
