@@ -126,37 +126,87 @@ void drawMove(byte input, bool speed) {
 void updateCanDraw() {
   byte allowedMoves = 0x0F;
 
-  // Block the opposite of the current travel direction (not input direction)
   byte lastDir = p.getLastTrailDir();
-  if (lastDir & 0x01) allowedMoves &= ~0x02; // traveling left, block right
-  else if (lastDir & 0x02) allowedMoves &= ~0x01; // traveling right, block left
-  if (lastDir & 0x04) allowedMoves &= ~0x08; // traveling up, block down
-  else if (lastDir & 0x08) allowedMoves &= ~0x04; // traveling down, block up
 
-  // For each of the 4 directions, check if moving there would land on a trail segment
+  // Compute reverse of last trail direction — always blocked (prevents 180s)
+  byte reverseDir = 0;
+  if (lastDir == 0x01) reverseDir = 0x02;
+  else if (lastDir == 0x02) reverseDir = 0x01;
+  else if (lastDir == 0x04) reverseDir = 0x08;
+  else if (lastDir == 0x08) reverseDir = 0x04;
+  allowedMoves &= ~reverseDir;
+
+  // Block U-turns: if the current segment is < 3 pixels, block the reverse
+  // of the *previous* segment's direction (prevents tight parallel lines).
+  if (p.trailCount >= 2) {
+    int curSegLen = vertexDistance(p.position, p.trail[p.trailCount - 1]);
+    if (curSegLen < 3) {
+      byte prevSegDir = getDirection(p.trail[p.trailCount - 2], p.trail[p.trailCount - 1]);
+      byte reversePrevDir = 0;
+      if (prevSegDir == 0x01) reversePrevDir = 0x02;
+      else if (prevSegDir == 0x02) reversePrevDir = 0x01;
+      else if (prevSegDir == 0x04) reversePrevDir = 0x08;
+      else if (prevSegDir == 0x08) reversePrevDir = 0x04;
+      allowedMoves &= ~reversePrevDir;
+    }
+  }
+
   byte dirs[4] = {0x01, 0x02, 0x04, 0x08};
   int dx[4] = {-1, 1, 0, 0};
   int dy[4] = {0, 0, -1, 1};
 
   for (int d = 0; d < 4; d++) {
     if (!(allowedMoves & dirs[d])) continue; // already blocked
+
     vertex nextPos = p.position;
     nextPos.addx(dx[d]);
     nextPos.addy(dy[d]);
 
-    // Check against each trail segment (corner to corner)
-    for (int i = 0; i < p.trailCount - 1; i++) {
-      if (pointOnSegment(nextPos, p.trail[i], p.trail[i + 1])) {
-        allowedMoves &= ~dirs[d];
+    // If next position is on the perimeter, always allow (don't block re-entry)
+    bool onPerim = false;
+    for (int i = 0; i < perim.vertexCount; i++) {
+      if (pointOnSegment(nextPos, perim.vertices[i],
+                         perim.vertices[(i + 1) % perim.vertexCount])) {
+        onPerim = true;
         break;
       }
     }
-    // Check the live segment (last corner to current position)
-    if ((allowedMoves & dirs[d]) && p.trailCount > 0) {
-      if (pointOnSegment(nextPos, p.trail[p.trailCount - 1], p.position)) {
-        allowedMoves &= ~dirs[d];
+    if (onPerim) continue;
+
+    // Check 1 step ahead against stored trail segments
+    bool blocked = false;
+    for (int i = 0; i < p.trailCount - 1; i++) {
+      if (pointOnSegment(nextPos, p.trail[i], p.trail[i + 1])) {
+        blocked = true;
+        break;
       }
     }
+    // Check 1 step ahead against live segment (last corner → current position)
+    if (!blocked && p.trailCount > 0) {
+      if (pointOnSegment(nextPos, p.trail[p.trailCount - 1], p.position)) {
+        blocked = true;
+      }
+    }
+
+    // Check 2 steps ahead against trail segments (prevents drawing adjacent to trail)
+    if (!blocked) {
+      vertex nextPos2 = nextPos;
+      nextPos2.addx(dx[d]);
+      nextPos2.addy(dy[d]);
+      for (int i = 0; i < p.trailCount - 1; i++) {
+        if (pointOnSegment(nextPos2, p.trail[i], p.trail[i + 1])) {
+          blocked = true;
+          break;
+        }
+      }
+      if (!blocked && p.trailCount > 0) {
+        if (pointOnSegment(nextPos2, p.trail[p.trailCount - 1], p.position)) {
+          blocked = true;
+        }
+      }
+    }
+
+    if (blocked) allowedMoves &= ~dirs[d];
   }
 
   p.allowedMoves = allowedMoves | (p.allowedMoves & 0x30); // Preserve draw mode bits
@@ -294,8 +344,16 @@ void updateDrawAllowance(byte input) {
         vertex v1 = perim.vertices[i];
         vertex v2 = perim.vertices[(i + 1) % perim.vertexCount];
         if (pointOnSegment(p.position, v1, v2)) {
-          p.setDrawStartIndex(0, i);
-          p.setDrawStartIndex(1, (i + 1) % perim.vertexCount);
+          int sA = i;
+          int sB = (i + 1) % perim.vertexCount;
+          // Collapse to single index if exactly at a corner vertex
+          if (p.position.getx() == v1.getx() && p.position.gety() == v1.gety()) {
+            sB = sA;
+          } else if (p.position.getx() == v2.getx() && p.position.gety() == v2.gety()) {
+            sA = sB;
+          }
+          p.setDrawStartIndex(0, sA);
+          p.setDrawStartIndex(1, sB);
           break;
         }
       }
@@ -320,61 +378,89 @@ void updatePerim() {
     return;
   }
 
-  int startIdx = p.getDrawStartIndex(0);
-  int endIdx = p.getDrawEndIndex(0);
+  int startIdx     = p.getDrawStartIndex(0);
+  int startIdxNext = p.getDrawStartIndex(1);
+  int endIdx       = p.getDrawEndIndex(0);
+  int endIdxNext   = p.getDrawEndIndex(1);
 
   // Normalize so startIdx <= endIdx. If we swap, reverse the trail
   // so trail[0] is still the vertex adjacent to perim[startIdx].
   if (endIdx < startIdx) {
-    int temp = startIdx;
-    startIdx = endIdx;
-    endIdx = temp;
+    int tmp;
+    tmp = startIdx;      startIdx     = endIdx;      endIdx     = tmp;
+    tmp = startIdxNext;  startIdxNext = endIdxNext;   endIdxNext = tmp;
     reverseVertices(p.trail, p.trailCount);
   }
-  // Note: startIdx == endIdx is fine — it means same-edge claim.
-  // The "forward arc" [startIdx..endIdx] has 0 intermediate vertices,
-  // and the "backward arc" has all of them. Both branches handle this.
+  if (startIdx == endIdx) {
+  vertex edgeV1 = perim.vertices[startIdx];
+  vertex edgeV2 = perim.vertices[startIdxNext];
+  bool needFlip;
+  if (edgeV1.getx() != edgeV2.getx()) {
+    // Horizontal edge: normalize by x
+    if (edgeV1.getx() < edgeV2.getx())
+      needFlip = p.trail[0].getx() > p.trail[p.trailCount - 1].getx();
+    else
+      needFlip = p.trail[0].getx() < p.trail[p.trailCount - 1].getx();
+  } else {
+    // Vertical edge: normalize by y
+    if (edgeV1.gety() < edgeV2.gety())
+      needFlip = p.trail[0].gety() > p.trail[p.trailCount - 1].gety();
+    else
+      needFlip = p.trail[0].gety() < p.trail[p.trailCount - 1].gety();
+  }
+  if (needFlip) reverseVertices(p.trail, p.trailCount);
+  }
 
-  // Build a test polygon: trail + backward arc (endIdx → ... → startIdx)
-  // to check which side the Qix is on.
+  // After normalization:
+  //   trail[0]    sits on edge perim[startIdx] → perim[startIdxNext]
+  //   trail[last] sits on edge perim[endIdx]   → perim[endIdxNext]
+  // When the player enters/exits exactly at a corner vertex the two
+  // indices for that end collapse to the same value.
+
+  // Build test polygon: trail + backward arc (endIdxNext → … → startIdx)
+  // The arc starts one vertex past the exit edge and ends at the near
+  // vertex of the entry edge, so the polygon closes along the perimeter
+  // with no corner-cutting.
   vertex scratch[MAX_VERTICES];
   int writeIdx = 0;
 
   for (int i = 0; i < p.trailCount && writeIdx < MAX_VERTICES; i++) {
     scratch[writeIdx++] = p.trail[i];
   }
-  int idx = endIdx;
+  int idx = endIdxNext;
+  // Skip first arc vertex if it duplicates trail's last vertex (corner exit)
+  if (endIdx == endIdxNext) {
+    idx = (idx + 1) % perim.vertexCount;
+  }
   while (idx != startIdx && writeIdx < MAX_VERTICES) {
     scratch[writeIdx++] = perim.vertices[idx];
     idx = (idx + 1) % perim.vertexCount;
   }
+  // Connector vertex — skip if it duplicates trail[0] (corner entry)
+  if (startIdx != startIdxNext && writeIdx < MAX_VERTICES) {
+    scratch[writeIdx++] = perim.vertices[startIdx];
+  }
 
   bool qixInTestPoly = isInsidePolygon(q.position, scratch, writeIdx);
 
-  // Rebuild the perimeter into scratch.
-  // We always output: trail + kept arc vertices.
-  // If Qix is inside test polygon → keep the test polygon side (trail + backward arc)
-  //   → that's already in scratch, just use it.
-  // If Qix is outside test polygon → keep trail + forward arc.
-  writeIdx = 0;
-
   if (qixInTestPoly) {
-    // Keep backward arc: trail + vertices from endIdx forward to startIdx
-    for (int i = 0; i < p.trailCount && writeIdx < MAX_VERTICES; i++) {
-      scratch[writeIdx++] = p.trail[i];
+    // Backward arc polygon is already in scratch — reuse it.
+  } else {
+    // Keep forward arc: startIdxNext → … → endIdx, then reversed trail.
+    writeIdx = 0;
+    idx = startIdxNext;
+    // Skip first arc vertex if it duplicates trail[0] (corner entry)
+    if (startIdx == startIdxNext) {
+      idx = (idx + 1) % perim.vertexCount;
     }
-    idx = endIdx;
-    while (idx != startIdx && writeIdx < MAX_VERTICES) {
+    while (idx != endIdxNext && writeIdx < MAX_VERTICES) {
       scratch[writeIdx++] = perim.vertices[idx];
       idx = (idx + 1) % perim.vertexCount;
     }
-  } else {
-    // Keep forward arc: vertices from startIdx to endIdx + reversed trail
-    for (int i = startIdx; i <= endIdx && writeIdx < MAX_VERTICES; i++) {
-      scratch[writeIdx++] = perim.vertices[i];
+    // Include endIdx connector — skip if it duplicates reversed trail's first vertex (corner exit)
+    if (endIdx != endIdxNext && writeIdx < MAX_VERTICES) {
+      scratch[writeIdx++] = perim.vertices[endIdx];
     }
-    // Trail goes exitV → ... → enterV, but we need endIdx→trail→startIdx,
-    // so append trail in reverse (exitV is trail[last], enterV is trail[0]).
     for (int i = p.trailCount - 1; i >= 0 && writeIdx < MAX_VERTICES; i--) {
       scratch[writeIdx++] = p.trail[i];
     }

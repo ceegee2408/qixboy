@@ -11,6 +11,6 @@
 #define FAST_MOVE 3  // Move every 3 frames
 #define SLOW_MOVE 4  // Move every 4 frames
 #define MAX_VERTICES 64
-#define DEBUG 0
+#define DEBUG 1
 
 #endif // CONFIG_H
