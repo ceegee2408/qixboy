@@ -135,8 +135,8 @@ void updateCanDraw() {
 
   // For each of the 4 directions, check if moving there would land on a trail segment
   byte dirs[4] = {0x01, 0x02, 0x04, 0x08};
-  int dx[4] = {-2, 2, 0, 0};
-  int dy[4] = {0, 0, -2, 2};
+  int dx[4] = {-1, 1, 0, 0};
+  int dy[4] = {0, 0, -1, 1};
 
   for (int d = 0; d < 4; d++) {
     if (!(allowedMoves & dirs[d])) continue; // already blocked
