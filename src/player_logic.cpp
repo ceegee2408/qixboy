@@ -372,6 +372,80 @@ void reverseVertices(vertex* verts, int count) {
   }
 }
 
+static bool sameVertex(vertex a, vertex b) {
+  return a.getx() == b.getx() && a.gety() == b.gety();
+}
+
+static bool isCollinear(vertex a, vertex b, vertex c) {
+  int abx = b.getx() - a.getx();
+  int aby = b.gety() - a.gety();
+  int bcx = c.getx() - b.getx();
+  int bcy = c.gety() - b.gety();
+  return (abx * bcy - aby * bcx) == 0;
+}
+
+static bool isBetween(vertex a, vertex b, vertex c) {
+  int minX = min(a.getx(), c.getx());
+  int maxX = max(a.getx(), c.getx());
+  int minY = min(a.gety(), c.gety());
+  int maxY = max(a.gety(), c.gety());
+  return b.getx() >= minX && b.getx() <= maxX &&
+         b.gety() >= minY && b.gety() <= maxY;
+}
+
+static void normalizePerimeterVertices() {
+  if (perim.vertexCount < 3) return;
+
+  bool changed;
+  vertex scratch[MAX_VERTICES];
+
+  do {
+    changed = false;
+
+    // Pass 1: remove consecutive duplicate vertices.
+    int uniqueCount = 0;
+    for (int i = 0; i < perim.vertexCount; i++) {
+      if (uniqueCount == 0 || !sameVertex(perim.vertices[i], scratch[uniqueCount - 1])) {
+        scratch[uniqueCount++] = perim.vertices[i];
+      } else {
+        changed = true;
+      }
+    }
+
+    if (uniqueCount > 1 && sameVertex(scratch[0], scratch[uniqueCount - 1])) {
+      uniqueCount--;
+      changed = true;
+    }
+
+    for (int i = 0; i < uniqueCount; i++) {
+      perim.vertices[i] = scratch[i];
+    }
+    perim.vertexCount = uniqueCount;
+
+    if (perim.vertexCount < 3) break;
+
+    // Pass 2: remove middle vertices on straight segments.
+    int compactCount = 0;
+    for (int i = 0; i < perim.vertexCount; i++) {
+      vertex prev = perim.vertices[(i - 1 + perim.vertexCount) % perim.vertexCount];
+      vertex curr = perim.vertices[i];
+      vertex next = perim.vertices[(i + 1) % perim.vertexCount];
+
+      if (isCollinear(prev, curr, next) && isBetween(prev, curr, next)) {
+        changed = true;
+        continue;
+      }
+
+      scratch[compactCount++] = curr;
+    }
+
+    for (int i = 0; i < compactCount; i++) {
+      perim.vertices[i] = scratch[i];
+    }
+    perim.vertexCount = compactCount;
+  } while (changed && perim.vertexCount >= 3);
+}
+
 void updatePerim() {
   if (p.trailCount < 2) {
     p.trailCount = 0;
@@ -471,6 +545,7 @@ void updatePerim() {
     perim.vertices[i] = scratch[i];
   }
   perim.vertexCount = writeIdx;
+  normalizePerimeterVertices();
   p.trailCount = 0;
 }
 
