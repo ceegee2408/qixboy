@@ -9,6 +9,9 @@
 // Sprite frame counts
 #include "sprites.h"
 
+// Forward declare rendering helper used to start the death animation
+void initializeDeathAnimation();
+
 class player {
   private:
     // Packed data to save RAM
@@ -75,6 +78,9 @@ class player {
       if (lives > 0) {
         lives--;
         data = (data & 0x3F) | (lives << 6);
+        // Trigger death animation state (do not set GAME_OVER yet)
+        gameState = DEATH_ANIMATION;
+        initializeDeathAnimation();
       } else {
         gameState = GAME_OVER;
       }
@@ -180,6 +186,9 @@ class fuze;
 // Declare global fuze instance (defined in main.cpp)
 extern fuze fz;
 
+// Forward-declare rendering function needed inside fuze::update()
+void restoreFuzeBackground();
+
 class fuze {
   public:
     bool active = false;
@@ -209,30 +218,28 @@ class fuze {
         active = false;
         return;
       }
-      // Advance animation tick and compute frame index for rendering
+      if (p.framesSinceMove < (uint16_t)SLOW_MOVE) {
+        return;
+      }
       frame++;
       if (frame >= (FUZE_FRAME_TICKS * FUZE_FRAME_COUNT)) frame = 0;
-      // Advance movement tick and only move when sufficient ticks elapsed
       moveTick++;
       bool doMove = false;
       if (moveTick >= (uint8_t)speed) { moveTick = 0; doMove = true; }
-      // Determine the next target along the trail. The live segment (from
-      // last trail vertex to p.position) is considered as the final target.
       bool hasNext = false;
       vertex nextTarget = position;
       if (trailIndex + 1 < p.trailCount) {
         nextTarget = p.trail[trailIndex + 1];
         hasNext = true;
       } else if (trailIndex + 1 == p.trailCount) {
-        // Next target is the player's current position (live segment)
         nextTarget = p.position;
         hasNext = true;
       }
 
       if (hasNext && compareVertices(position, nextTarget)) {
         trailIndex++;
-        // If we've reached or passed the live endpoint, stop the fuze.
         if (trailIndex >= p.trailCount) {
+          p.loseLife();
           active = false;
           return;
         }

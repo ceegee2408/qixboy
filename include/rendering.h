@@ -22,6 +22,11 @@ void saveBackground(vertex pos);
 void restoreBackground();
 void saveFuzeBackground(vertex pos);
 void restoreFuzeBackground();
+// Death animation state and control
+void initializeDeathAnimation();
+void drawDeathAnimation();
+extern int deathAnimRadius;
+extern vertex deathAnimCenter;
 void initializeFill(bool speed);
 
 void drawLine(vertex v1, vertex v2);

@@ -98,6 +98,8 @@ void loop() {
       drawPerimeter();
       saveBackground(p.position);
       drawPlayer();
+    } else if (gameState == DEATH_ANIMATION) {
+      drawDeathAnimation();
     }
 
     // Advance player's idle/movement frame counter every loop iteration

@@ -83,20 +83,7 @@ void drawMove(byte input, bool speed) {
         p.addTrailVertex(p.position);
       }
       p.setLastTrailDir(p.getActiveDir());
-      bool moved = movePlayer(p.allowedMoves);
-      if (moved) {
-        // If the fuze was active, save its position so it can resume later
-        extern fuze fz;
-        if (fz.active) {
-          fz.resumePos = fz.position;
-          fz.resumeTrailIndex = fz.trailIndex;
-          fz.hasResumePos = true;
-          fz.active = false;
-          // Erase the fuze immediately so it does not continue to be
-          // restored/drawn across frames.
-          restoreFuzeBackground();
-        }
-      }
+      movePlayer(p.allowedMoves);
     }
     
     // Check if player has returned to the perimeter (only after moving away from start)
@@ -294,17 +281,7 @@ void perimeterMove(byte input) {
   if (frameCounter % FAST_MOVE == 0) {
     // Call movePlayer with perimeter constraints
     vertex prevPos = p.position;
-    bool moved = movePlayer(p.allowedMoves);
-    if (moved) {
-      extern fuze fz;
-      if (fz.active) {
-        fz.resumePos = fz.position;
-        fz.resumeTrailIndex = fz.trailIndex;
-        fz.hasResumePos = true;
-        fz.active = false;
-        restoreFuzeBackground();
-      }
-    }
+    movePlayer(p.allowedMoves);
     if (p.position.getx() != prevPos.getx() || p.position.gety() != prevPos.gety()) {
       updatePerimIndex();
       updateCanMove();
