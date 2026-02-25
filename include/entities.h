@@ -18,7 +18,7 @@ class player {
     uint16_t drawEndIndexPacked = 0; // lower 6 bits: index[0], next 6 bits: index[1]
 
   public:
-    byte data = NUM_LIVES * 4; // upper 2 bits for lives, bit 2 for stationary state
+    byte data = NUM_LIVES << 6; // upper 2 bits for lives, bit 2 for stationary flag
     byte allowedMoves = 0x03; // bit 0-3 for left, right, up, down; bit 4 for fast move, bit 5 for slow move
     byte prevInput = 0; // previous frame input
     vertex position;
@@ -99,6 +99,13 @@ class player {
     inline bool isInDrawModeAndIdle(uint16_t threshold) {
       return ((allowedMoves & 0x30) != 0) && (framesSinceMove >= threshold);
     }
+
+    void respawn() {
+      position = vertex(WIDTH / 2, HEIGHT - 1);
+      trailCount = 0;
+      allowedMoves = 0x03; // reset to allow perimeter movement
+      setStationary(false);
+    }
 };
 
 
@@ -162,6 +169,13 @@ class perimeter {
         }
       }
     }
+    void reset() {
+      vertexCount = 4;
+      vertices[0] = vertex(0, 0);
+      vertices[1] = vertex(0, HEIGHT - 1);
+      vertices[2] = vertex(WIDTH - 1, HEIGHT - 1);
+      vertices[3] = vertex(WIDTH - 1, 0);
+    }
 };
 
 class qix {
@@ -210,6 +224,10 @@ class fuze {
     void update() {
       if (!active) return;
       if (!(p.allowedMoves & 0x30)) {
+        active = false;
+        return;
+      }
+      if (p.trailCount < 2) {
         active = false;
         return;
       }

@@ -18,6 +18,15 @@ static bool     fzBgSaved = false;
 // Death animation center (set when the player dies)
 vertex deathAnimCenter;
 
+static int deathAnimRadius = 0;
+static int deathAnimTick = 0;
+static int deathAnimPhase = 0;
+static int radiusStep = 0;
+
+#define DEATH_RADIUS_MAX    300
+#define DEATH_TICK_INTERVAL  1
+#define DEATH_PULSE_COUNT    2
+
 void saveBackground(vertex pos) {
   bgSavedPos = pos;
   bgSaved    = true;
@@ -275,11 +284,90 @@ void fuze::render() {
 void initializeDeathAnimation() {
   gameState = DEATH_ANIMATION;
   deathAnimCenter = p.position;
+  deathAnimRadius = 1;
+  deathAnimTick   = 0;
+  deathAnimPhase  = 0;
+  radiusStep = 10;
   restoreBackground();
 }
 
+void respawn() {
+  p.respawn();
+  perim.reset();
+  q.position = vertex(WIDTH / 2, HEIGHT / 2);
+  fz.active = false;
+  fillAnimationFrame = 0;
+  bgSaved = false;
+  fzBgSaved = false;
+  gameState = PLAYING;
+}
+
+int xreset = 0;
+int yreset = 0;
+
 void drawDeathAnimation() {
-  int cx = deathAnimCenter.getx();
-  int cy = deathAnimCenter.gety();
-  arduboy.drawRect(cx - 4, cy - 4, 9, 9, WHITE);
+  if(deathAnimPhase < 2) {
+    int cx = deathAnimCenter.getx();
+    int cy = deathAnimCenter.gety();
+
+    // Offsets from current radius — gaps shrink at larger distances
+    // e.g. at r=14: draws at 14, 11, 7, 2 (gaps 3, 4, 5)
+    // increase DEATH_RADIUS_MAX if you want more rings visible
+    int offsets[] = { 0, 3, 7, 11, 15, 17, 19 };
+
+    for (int o = 0; o < 4; o++) {
+      int r = deathAnimRadius - offsets[o];
+      if (r < 1) continue;
+      for (int i = 0; i <= r; i++) {
+        int coords[4][2] = {
+          { cx + i, cy - (r - i) },
+          { cx + i, cy + (r - i) },
+          { cx - i, cy + (r - i) },
+          { cx - i, cy - (r - i) }
+        };
+        for (int c = 0; c < 4; c++) {
+          int x = coords[c][0], y = coords[c][1];
+          if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT) {
+            if (deathAnimPhase == 1) {
+              arduboy.drawPixel(x, y, BLACK);
+            } else {
+              bool co = (arduboy.getPixel(x, y) ? BLACK : WHITE);
+              arduboy.drawPixel(x, y, co);
+            }
+          }
+        }
+      }
+    }
+    deathAnimTick++;
+    if (deathAnimTick < DEATH_TICK_INTERVAL) return;
+    deathAnimTick = 0;
+    deathAnimRadius += radiusStep;
+
+    if (deathAnimRadius > DEATH_RADIUS_MAX) {
+    deathAnimRadius = 1;
+    deathAnimPhase++;
+    }
+  } else {
+    arduboy.drawFastHLine(0, 0, WIDTH, WHITE);
+    arduboy.display();
+    for (int y = 1; y < HEIGHT-1; y+=2) {
+      arduboy.drawPixel(0, y, WHITE);
+      arduboy.drawFastHLine(1, y, WIDTH-2, BLACK);
+      arduboy.drawPixel(WIDTH-1, y, WHITE);
+      arduboy.display();
+    }
+    for (int y = 2; y < HEIGHT-1; y+=2) {
+      arduboy.drawPixel(0, y, WHITE);
+      arduboy.drawFastHLine(1, y, WIDTH-2, BLACK);
+      arduboy.drawPixel(WIDTH-1, y, WHITE);
+      arduboy.display();
+    }
+    arduboy.drawFastHLine(0, HEIGHT-1, WIDTH, WHITE);
+    arduboy.display();
+    delay(1000);
+    respawn();
+    drawPerimeter();          // redraw the perimeter on the clean screen
+    //gameState = GAME_OVER;
+    //while(true){}
+  }
 }
