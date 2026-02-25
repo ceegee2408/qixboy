@@ -27,6 +27,7 @@ uint16_t frameCounter = 0;
 vertex currentFillVerts[MAX_VERTICES];
 int currentFillCount = 0;
 int fillAnimationFrame = 0;
+bool fillDith = false;
 GAMESTATE gameState = PLAYING; // change to START_SCREEN once implimented
 
 void setup() {
@@ -54,7 +55,10 @@ void loop() {
       drawPlayer();
       drawDebug();
     } else if(gameState == FILL_ANIMATION) {
-      scanlineFill(currentFillVerts, currentFillCount, (p.allowedMoves & 0x10));
+      arduboy.setCursor(0, HEIGHT / 2 - 4);
+      arduboy.setTextColor(WHITE);
+      arduboy.print("Filling...");
+      scanlineFill(currentFillVerts, currentFillCount, fillDith);
     }
 
     arduboy.display();

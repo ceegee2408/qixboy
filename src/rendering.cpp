@@ -118,61 +118,82 @@ void drawDebug() {
 #endif
 }
 
-void initializeFill(){
+void initializeFill(bool speed) {
   fillAnimationFrame = 0;
+  fillDith = speed;
 }
 
 // Prototype for animated horizontal line used by scanlineFill
-void drawAnimatedHLine(int x, int y, int w, int fast, int frames);
+void drawAnimatedHLine(int x, int y, int w, bool fast);
 
 void scanlineFill(vertex* verts, int count, bool fast) {
+  // Use global `fillAnimationFrame` as the current scanline index. Each call
+  // advances the animation by one horizontal scanline so the animation can
+  // progress across frames instead of blocking the loop.
+  int y = fillAnimationFrame;
+  if (y < 0) y = 0;
+  if (y >= HEIGHT) {
+    // Nothing to do; ensure state reset and background saved.
+    gameState = PLAYING;
+    fillAnimationFrame = 0;
+    saveBackground(p.position);
+    return;
+  }
+
+  // Compute intersections for this scanline
+  int xs[32];
+  int xCount = 0;
+  for (int i = 0; i < count; i++) {
+    vertex v1 = verts[i];
+    vertex v2 = verts[(i + 1) % count];
+    int minY = min(v1.gety(), v2.gety());
+    int maxY = max(v1.gety(), v2.gety());
+    if (y < minY || y >= maxY) continue;
+    if (v1.gety() == v2.gety()) continue; // Skip horizontal edges
+    int x = (v1.getx() == v2.getx()) ? v1.getx()
+      : v1.getx() + (y - v1.gety()) * (v2.getx() - v1.getx()) / (v2.gety() - v1.gety());
+    if (xCount < (int)(sizeof(xs) / sizeof(xs[0]))) xs[xCount++] = x;
+  }
+
+  // Sort xs (insertion sort, small n)
+  for (int a = 1; a < xCount; a++) {
+    int key = xs[a];
+    int b = a - 1;
+    while (b >= 0 && xs[b] > key) {
+      xs[b + 1] = xs[b];
+      b--;
+    }
+    xs[b + 1] = key;
+  }
+
+  // Draw spans for this single scanline
+  for (int i = 0; i + 1 < xCount; i += 2) {
+    int x1 = xs[i];
+    int x2 = xs[i + 1];
+    if (x2 > x1) drawAnimatedHLine(x1, y, x2 - x1, fast);
+  }
+
+  // Advance to next scanline for next frame; when finished, finalize
   fillAnimationFrame++;
-  int currentFrame = fillAnimationFrame;
-  for (int y = 0; y < HEIGHT; y++) {
-    byte xs[16];
-    byte xCount = 0;
-    // Compute intersections for this scanline
-    for (int i = 0; i < count; i++) {
-      vertex v1 = verts[i];
-      vertex v2 = verts[(i + 1) % count];
-      int minY = min(v1.gety(), v2.gety());
-      int maxY = max(v1.gety(), v2.gety());
-      if (y < minY || y >= maxY) continue;
-      if (v1.gety() == v2.gety()) continue; // Skip horizontal edges
-      int x = (v1.getx() == v2.getx()) ? v1.getx()
-        : v1.getx() + (y - v1.gety()) * (v2.getx() - v1.getx()) / (v2.gety() - v1.gety());
-      if (xCount < 16) xs[xCount++] = x;
-    }
-    // Sort xs (insertion sort, small n)
-    for (int a = 1; a < xCount; a++) {
-      byte key = xs[a], b = a - 1;
-      while (b >= 0 && xs[b] > key) { 
-        xs[b + 1] = xs[b]; 
-        b--; 
-      }
-      xs[b + 1] = key;
-    }
-    // check if fill was fast or slow and draw accordingly
-    for (int a = 0; a + 1 < xCount; a += 2) {
-        if (xs[a+1] - xs[a] <= currentFrame) continue; // Skip if line not reached by animation
-        drawAnimatedHLine(xs[a], y, xs[a+1] - xs[a], fast, currentFrame);
-        currentFrame -= xs[a+1] - xs[a]; 
-        if (currentFrame <= 0) {
-            gameState = PLAYING;
-            fillAnimationFrame = 0;
-            return;
-        };
-    }
+  if (fillAnimationFrame >= HEIGHT) {
+    gameState = PLAYING;
+    fillAnimationFrame = 0;
+    saveBackground(p.position);
   }
 }
 
-void drawAnimatedHLine(int x, int y, int w, int fast, int _frames) { 
-  // check if fast or slow and draw accordingly
-  x += _frames; // skip to current animation frame
+void drawAnimatedHLine(int x, int y, int w, bool fast) { 
+  // Draw a horizontal span. For 'fast' fill use a dithering pattern (draw
+  // alternating pixels) to produce a dashed appearance. Do not call
+  // `display()` or `delay()` here — the main loop handles frame timing.
+  if (w <= 0) return;
   if (fast) {
-    bool color = (y+x) % 2 == 0;
-    arduboy.drawPixel(x, y, color);
+    for (int i = 0; i < w; i++) {
+      if (((i + y) & 1) == 0) arduboy.drawPixel(x + i, y, WHITE);
+    }
   } else {
-    arduboy.drawPixel(x, y, WHITE);
+    for (int i = 0; i < w; i++) {
+      arduboy.drawPixel(x + i, y, WHITE);
+    }
   }
 }

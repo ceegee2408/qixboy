@@ -140,7 +140,7 @@ void drawMove(byte input, bool speed) {
           // If we couldn't re-find the player on the new perimeter, clear draw
           // mode bits so we don't remain stuck in draw mode.
           gameState = FILL_ANIMATION;
-          initializeFill();
+          initializeFill(speed);
           if (!found) {
             p.allowedMoves &= ~0x30; // clear draw mode bits
             drawCooldown = true;     // prevent immediate re-entry if A/B still held
@@ -501,25 +501,42 @@ void updatePerim() {
 
   if (qixInTestPoly) {
     // New perimeter = scratch (trail + backward arc) — already built.
-    // Captured area = forward arc + reversed trail.
+    // Captured area = forward arc + reversed trail. Special-case when both
+    // trail endpoints lie on the same perimeter edge (startIdx == endIdx):
+    // the small captured polygon is just the trail vertices (U-shape).
     int ci = 0;
-    int cidx = startIdxNext;
-    if (startIdx == startIdxNext) cidx = (cidx + 1) % perim.vertexCount;
-    while (cidx != endIdx && ci < MAX_VERTICES) {
-      currentFillVerts[ci++] = perim.vertices[cidx];
-      cidx = (cidx + 1) % perim.vertexCount;
+    if (startIdx == endIdx) {
+      for (int i = 0; i < p.trailCount && ci < MAX_VERTICES; i++)
+        currentFillVerts[ci++] = p.trail[i];
+      currentFillCount = ci;
+    } else {
+      int cidx = startIdxNext;
+      if (startIdx == startIdxNext) cidx = (cidx + 1) % perim.vertexCount;
+      while (cidx != endIdx && ci < MAX_VERTICES) {
+        currentFillVerts[ci++] = perim.vertices[cidx];
+        cidx = (cidx + 1) % perim.vertexCount;
+      }
+      if (endIdx != endIdxNext && ci < MAX_VERTICES)
+        currentFillVerts[ci++] = perim.vertices[endIdx];
+      for (int i = p.trailCount - 1; i >= 0 && ci < MAX_VERTICES; i--)
+        currentFillVerts[ci++] = p.trail[i];
+      currentFillCount = ci;
     }
-    if (endIdx != endIdxNext && ci < MAX_VERTICES)
-      currentFillVerts[ci++] = perim.vertices[endIdx];
-    for (int i = p.trailCount - 1; i >= 0 && ci < MAX_VERTICES; i--)
-      currentFillVerts[ci++] = p.trail[i];
-    currentFillCount = ci;
 
     // scratch already holds the new perimeter
   } else {
     // Captured area = trail + backward arc — that's currently in scratch.
-    for (int i = 0; i < writeIdx; i++) currentFillVerts[i] = scratch[i];
-    currentFillCount = writeIdx;
+    // If the trail starts and ends on the same perimeter edge, the small
+    // captured polygon is only the trail vertices; otherwise copy scratch.
+    if (startIdx == endIdx) {
+      int ci = 0;
+      for (int i = 0; i < p.trailCount && ci < MAX_VERTICES; i++)
+        currentFillVerts[ci++] = p.trail[i];
+      currentFillCount = ci;
+    } else {
+      for (int i = 0; i < writeIdx; i++) currentFillVerts[i] = scratch[i];
+      currentFillCount = writeIdx;
+    }
 
     // Rebuild scratch as forward arc + reversed trail (existing logic)
     writeIdx = 0;
