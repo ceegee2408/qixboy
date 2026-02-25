@@ -19,21 +19,22 @@ static vertex   bgSavedPos;
 static bool     bgSaved   = false;
 
 void saveBackground(vertex pos) {
-    bgSavedPos = pos;
-    bgSaved    = true;
-    bgBuffer   = 0;
-    int sx = pos.getx() - PLAYER_SIZE;
-    int sy = pos.gety() - PLAYER_SIZE;
-    for (int row = 0; row < SPRITE_SIZE; row++) {
-        for (int col = 0; col < SPRITE_SIZE; col++) {
-            int px = sx + col, py = sy + row;
-            if (px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
-                if (arduboy.getPixel(px, py)) {
-                    bgBuffer |= (1UL << (row * SPRITE_SIZE + col));
-                }
-            }
-        }
-    }
+  bgSavedPos = pos;
+  bgSaved    = true;
+  bgBuffer   = 0;
+  int sx = pos.getx() - PLAYER_SIZE;
+  int sy = pos.gety() - PLAYER_SIZE;
+  for (int row = 0; row < SPRITE_SIZE; row++) {
+      for (int col = 0; col < SPRITE_SIZE; col++) {
+          int px = sx + col, py = sy + row;
+          if (px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
+              if (arduboy.getPixel(px, py)) {
+                  bgBuffer |= (1UL << (row * SPRITE_SIZE + col));
+              }
+          }
+      }
+  }
+  arduboy.display(); // on for debugging
 }
 
 void restoreBackground() {
@@ -50,6 +51,7 @@ void restoreBackground() {
       }
   }
   bgSaved = false;
+  arduboy.display(); // on for debugging
 }
 
 void drawLine(vertex v1, vertex v2) {
@@ -148,7 +150,7 @@ void scanlineFill(vertex* verts, int count, bool fast) {
     vertex v2 = verts[(i + 1) % count];
     int minY = min(v1.gety(), v2.gety());
     int maxY = max(v1.gety(), v2.gety());
-    if (y <= minY || y >= maxY) continue;
+    if (y < minY || y >= maxY) continue;
     if (v1.gety() == v2.gety()) continue; // Skip horizontal edges
     int x = (v1.getx() == v2.getx()) ? v1.getx()
       : v1.getx() + (y - v1.gety()) * (v2.getx() - v1.getx()) / (v2.gety() - v1.gety());
@@ -178,7 +180,8 @@ void scanlineFill(vertex* verts, int count, bool fast) {
   if (fillAnimationFrame >= HEIGHT) {
     gameState = PLAYING;
     fillAnimationFrame = 0;
-    //saveBackground(p.position);
+    saveBackground(p.position);
+    drawPlayer();
   }
 }
 

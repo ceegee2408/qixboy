@@ -56,6 +56,7 @@ void loop() {
       drawDebug();
     } else if(gameState == FILL_ANIMATION) {
       scanlineFill(currentFillVerts, currentFillCount, fillDith);
+      drawPerimeter();
     }
 
     arduboy.display();
