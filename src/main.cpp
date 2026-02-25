@@ -75,7 +75,7 @@ void loop() {
       // and the player just stopped (framesSinceMove == 1), or after the
       // configured idle threshold.
       if (!fz.active) {
-        if (fz.hasResumePos && p.framesSinceMove == 1 && (p.allowedMoves & 0x30)) {
+        if (fz.hasResumePos && p.framesSinceMove <= 5 && (p.allowedMoves & 0x30)) {
           fz.begin();
         } else if (p.isInDrawModeAndIdle(FUZE_IDLE_THRESHOLD)) {
           fz.begin();

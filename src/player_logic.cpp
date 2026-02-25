@@ -89,6 +89,7 @@ void drawMove(byte input, bool speed) {
         extern fuze fz;
         if (fz.active) {
           fz.resumePos = fz.position;
+          fz.resumeTrailIndex = fz.trailIndex;
           fz.hasResumePos = true;
           fz.active = false;
           // Erase the fuze immediately so it does not continue to be
@@ -298,6 +299,7 @@ void perimeterMove(byte input) {
       extern fuze fz;
       if (fz.active) {
         fz.resumePos = fz.position;
+        fz.resumeTrailIndex = fz.trailIndex;
         fz.hasResumePos = true;
         fz.active = false;
         restoreFuzeBackground();

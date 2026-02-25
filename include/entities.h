@@ -194,19 +194,18 @@ class fuze {
     void begin() {
       active = true;
       frame = 0;
-      trailIndex = 0;
       if (hasResumePos) {
         position = resumePos;
+        trailIndex = resumeTrailIndex;
         hasResumePos = false;
-      } else if (p.trailCount > 0) position = p.trail[0];
+      } else {
+        trailIndex = 0;
+        if (p.trailCount > 0) position = p.trail[0];
+      }
     }
     void update() {
       if (!active) return;
       if (!(p.allowedMoves & 0x30)) {
-        active = false;
-        return;
-      }
-      if (!p.stationary()) {
         active = false;
         return;
       }
@@ -253,6 +252,7 @@ class fuze {
     // previous fuze position here so it can resume instantly later.
     vertex resumePos;
     bool hasResumePos = false;
+    byte resumeTrailIndex = 0;
 };
 
 class sparx {
