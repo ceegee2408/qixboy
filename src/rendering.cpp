@@ -266,6 +266,6 @@ void fuze::render() {
   int fx = position.getx() - PLAYER_SIZE;
   int fy = position.gety() - PLAYER_SIZE;
   // fuze.frame may run 0..7; frameset is 4 frames, so modulo 4
-  int fidx = frame % 4;
+  int fidx = (frame / FUZE_FRAME_TICKS) % FUZE_FRAME_COUNT;
   drawSpriteFrame_P((const uint8_t*)fuzeSpriteFrames, fidx, SPRITE_SIZE, SPRITE_SIZE, fx, fy);
 }

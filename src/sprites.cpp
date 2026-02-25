@@ -1,5 +1,5 @@
 #include "sprites.h"
-#define FUZE_FRAME_COUNT 4
+#include "sprites.h"
 #define SPARX_FRAME_COUNT 5
 #define SPARX_SIZE 7
 #define DEATH_FRAME_COUNT 5

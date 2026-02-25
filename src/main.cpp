@@ -71,9 +71,15 @@ void loop() {
       updateActiveDirection(input);
       updatePlayer(input);
 
-      // Start fuze if player is idle in draw mode long enough
-      if (p.isInDrawModeAndIdle(FUZE_IDLE_THRESHOLD)) {
-        if (!fz.active) fz.begin();
+      // Start fuze: either resume instantly if we have a saved resume position
+      // and the player just stopped (framesSinceMove == 1), or after the
+      // configured idle threshold.
+      if (!fz.active) {
+        if (fz.hasResumePos && p.framesSinceMove == 1 && (p.allowedMoves & 0x30)) {
+          fz.begin();
+        } else if (p.isInDrawModeAndIdle(FUZE_IDLE_THRESHOLD)) {
+          fz.begin();
+        }
       }
       // Always update fuze state (it will deactivate when appropriate)
       fz.update();
@@ -81,10 +87,9 @@ void loop() {
       if (gameState == PLAYING) {
         saveBackground(p.position);
         drawPlayer();
-        // Restore any previous fuze area was done earlier; now render fuze
-        fz.render();
-        // Save fuze background for next frame (so we can erase it before next draw)
         if (fz.active) saveFuzeBackground(fz.position);
+        // Now draw the fuze on top
+        fz.render();
         drawDebug();
       }
     } else if(gameState == FILL_ANIMATION) {

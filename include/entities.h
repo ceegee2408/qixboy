@@ -6,6 +6,8 @@
 #include "types.h"
 #include "geometry.h"
 #include "gamestate.h"
+// Sprite frame counts
+#include "sprites.h"
 
 class player {
   private:
@@ -173,14 +175,19 @@ class qix {
 
 // Declare global player instance (defined in main.cpp)
 extern player p;
+// Forward-declare fuze so other translation units can reference the global
+class fuze;
+// Declare global fuze instance (defined in main.cpp)
+extern fuze fz;
 
 class fuze {
   public:
     bool active = false;
     vertex position;
     byte trailIndex = 0;
-    int speed = FAST_MOVE;
-    byte frame = 0;
+    int speed = FUZE_MOVE_INTERVAL;
+    byte frame = 0; // tick counter for animation
+    byte moveTick = 0; // tick counter for movement gating
     fuze() {
       position = vertex(WIDTH / 2, HEIGHT / 2);
     }
@@ -188,7 +195,10 @@ class fuze {
       active = true;
       frame = 0;
       trailIndex = 0;
-      if (p.trailCount > 0) position = p.trail[0];
+      if (hasResumePos) {
+        position = resumePos;
+        hasResumePos = false;
+      } else if (p.trailCount > 0) position = p.trail[0];
     }
     void update() {
       if (!active) return;
@@ -200,8 +210,13 @@ class fuze {
         active = false;
         return;
       }
+      // Advance animation tick and compute frame index for rendering
       frame++;
-      if (frame >= 8) frame = 0;
+      if (frame >= (FUZE_FRAME_TICKS * FUZE_FRAME_COUNT)) frame = 0;
+      // Advance movement tick and only move when sufficient ticks elapsed
+      moveTick++;
+      bool doMove = false;
+      if (moveTick >= (uint8_t)speed) { moveTick = 0; doMove = true; }
       // Determine the next target along the trail. The live segment (from
       // last trail vertex to p.position) is considered as the final target.
       bool hasNext = false;
@@ -224,7 +239,7 @@ class fuze {
         }
       }
 
-      if (hasNext) {
+      if (hasNext && doMove) {
         switch (getDirection(position, nextTarget)) {
           case 0x01: position.addx(-1); break; // left
           case 0x02: position.addx(1); break;  // right
@@ -234,6 +249,10 @@ class fuze {
       }
     }
     void render();
+    // If the fuze was interrupted by player movement, we store the
+    // previous fuze position here so it can resume instantly later.
+    vertex resumePos;
+    bool hasResumePos = false;
 };
 
 class sparx {

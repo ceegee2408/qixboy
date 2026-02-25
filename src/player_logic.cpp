@@ -84,7 +84,18 @@ void drawMove(byte input, bool speed) {
       }
       p.setLastTrailDir(p.getActiveDir());
       bool moved = movePlayer(p.allowedMoves);
-      (void)moved;
+      if (moved) {
+        // If the fuze was active, save its position so it can resume later
+        extern fuze fz;
+        if (fz.active) {
+          fz.resumePos = fz.position;
+          fz.hasResumePos = true;
+          fz.active = false;
+          // Erase the fuze immediately so it does not continue to be
+          // restored/drawn across frames.
+          restoreFuzeBackground();
+        }
+      }
     }
     
     // Check if player has returned to the perimeter (only after moving away from start)
@@ -283,7 +294,15 @@ void perimeterMove(byte input) {
     // Call movePlayer with perimeter constraints
     vertex prevPos = p.position;
     bool moved = movePlayer(p.allowedMoves);
-    (void)moved;
+    if (moved) {
+      extern fuze fz;
+      if (fz.active) {
+        fz.resumePos = fz.position;
+        fz.hasResumePos = true;
+        fz.active = false;
+        restoreFuzeBackground();
+      }
+    }
     if (p.position.getx() != prevPos.getx() || p.position.gety() != prevPos.gety()) {
       updatePerimIndex();
       updateCanMove();
@@ -568,6 +587,11 @@ void updatePerim() {
   perim.vertexCount = writeIdx;
   perim.removeCollinear();
   p.trailCount = 0;
+  // Draw completed: forget any saved fuze resume position and erase any
+  // remaining fuze pixels so a subsequent new draw starts fresh.
+  extern fuze fz;
+  if (fz.hasResumePos) fz.hasResumePos = false;
+  restoreFuzeBackground();
 }
 
 bool isQixInsidePerimeter() {
