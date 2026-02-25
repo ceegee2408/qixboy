@@ -7,6 +7,6 @@
 #define FAST_MOVE 3
 #define SLOW_MOVE 5
 #define MAX_VERTICES 64
-#define DEBUG 1
+#define DEBUG 0
 
 #endif // CONFIG_H

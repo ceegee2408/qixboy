@@ -55,9 +55,6 @@ void loop() {
       drawPlayer();
       drawDebug();
     } else if(gameState == FILL_ANIMATION) {
-      arduboy.setCursor(0, HEIGHT / 2 - 4);
-      arduboy.setTextColor(WHITE);
-      arduboy.print("Filling...");
       scanlineFill(currentFillVerts, currentFillCount, fillDith);
     }
 

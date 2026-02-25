@@ -121,6 +121,7 @@ void drawDebug() {
 void initializeFill(bool speed) {
   fillAnimationFrame = 0;
   fillDith = speed;
+  restoreBackground();
 }
 
 // Prototype for animated horizontal line used by scanlineFill
@@ -136,7 +137,6 @@ void scanlineFill(vertex* verts, int count, bool fast) {
     // Nothing to do; ensure state reset and background saved.
     gameState = PLAYING;
     fillAnimationFrame = 0;
-    saveBackground(p.position);
     return;
   }
 
@@ -148,7 +148,7 @@ void scanlineFill(vertex* verts, int count, bool fast) {
     vertex v2 = verts[(i + 1) % count];
     int minY = min(v1.gety(), v2.gety());
     int maxY = max(v1.gety(), v2.gety());
-    if (y < minY || y >= maxY) continue;
+    if (y <= minY || y >= maxY) continue;
     if (v1.gety() == v2.gety()) continue; // Skip horizontal edges
     int x = (v1.getx() == v2.getx()) ? v1.getx()
       : v1.getx() + (y - v1.gety()) * (v2.getx() - v1.getx()) / (v2.gety() - v1.gety());
@@ -170,7 +170,7 @@ void scanlineFill(vertex* verts, int count, bool fast) {
   for (int i = 0; i + 1 < xCount; i += 2) {
     int x1 = xs[i];
     int x2 = xs[i + 1];
-    if (x2 > x1) drawAnimatedHLine(x1, y, x2 - x1, fast);
+    if (x2 > x1 + 1) drawAnimatedHLine(x1 + 1, y, x2 - x1 - 1, fast);
   }
 
   // Advance to next scanline for next frame; when finished, finalize
@@ -178,7 +178,7 @@ void scanlineFill(vertex* verts, int count, bool fast) {
   if (fillAnimationFrame >= HEIGHT) {
     gameState = PLAYING;
     fillAnimationFrame = 0;
-    saveBackground(p.position);
+    //saveBackground(p.position);
   }
 }
 
@@ -188,6 +188,8 @@ void drawAnimatedHLine(int x, int y, int w, bool fast) {
   // `display()` or `delay()` here — the main loop handles frame timing.
   if (w <= 0) return;
   if (fast) {
+    //clear line to reduce ghosting
+    arduboy.drawFastHLine(x, y, w, BLACK);
     for (int i = 0; i < w; i++) {
       if (((i + y) & 1) == 0) arduboy.drawPixel(x + i, y, WHITE);
     }

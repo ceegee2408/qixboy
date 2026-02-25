@@ -137,8 +137,7 @@ void drawMove(byte input, bool speed) {
               break;
             }
           }
-          // If we couldn't re-find the player on the new perimeter, clear draw
-          // mode bits so we don't remain stuck in draw mode.
+          // fill current perimeter and trail for animation
           gameState = FILL_ANIMATION;
           initializeFill(speed);
           if (!found) {
