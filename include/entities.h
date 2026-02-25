@@ -4,6 +4,8 @@
 #include <Arduino.h>
 #include "config.h"
 #include "types.h"
+#include "geometry.h"
+#include "gamestate.h"
 
 class player {
   private:
@@ -14,7 +16,7 @@ class player {
     uint16_t drawEndIndexPacked = 0; // lower 6 bits: index[0], next 6 bits: index[1]
 
   public:
-    byte data = NUM_LIVES * 4; // upper 2 bits for lives
+    byte data = NUM_LIVES * 4; // upper 2 bits for lives, bit 2 for stationary state
     byte allowedMoves = 0x03; // bit 0-3 for left, right, up, down; bit 4 for fast move, bit 5 for slow move
     byte prevInput = 0; // previous frame input
     vertex position;
@@ -51,6 +53,29 @@ class player {
     inline void setDrawEndIndex(byte i, byte val) {
       if (i == 0) drawEndIndexPacked = (drawEndIndexPacked & 0xFFC0) | (val & 0x3F);
       else drawEndIndexPacked = (drawEndIndexPacked & 0x003F) | ((val & 0x3F) << 6);
+    }
+
+    bool stationary() {
+      return (data & 0x04) != 0;
+    }
+
+    void setStationary(bool stationary) {
+      if (stationary) data |= 0x04;
+      else data &= ~0x04;
+    }
+
+    byte getLives() {
+      return data >> 6;
+    }
+
+    void loseLife() {
+      byte lives = getLives();
+      if (lives > 0) {
+        lives--;
+        data = (data & 0x3F) | (lives << 6);
+      } else {
+        gameState = GAME_OVER;
+      }
     }
 
     void addTrailVertex(vertex v) {
@@ -134,13 +159,55 @@ class qix {
     }
 };
 
+// Declare global player instance (defined in main.cpp)
+extern player p;
+
 class fuze {
   public:
+    bool active = false;
     vertex position;
-    int speed = 1;
-    
+    byte trailIndex = 0;
+    int speed = FAST_MOVE;
+    byte frame = 0;
     fuze() {
       position = vertex(WIDTH / 2, HEIGHT / 2);
+    }
+    void begin() {
+      active = true;
+      frame = 0;
+      trailIndex = 0;
+      if (p.trailCount > 0) position = p.trail[0];
+    }
+    void update() {
+      if (!active) return;
+      if (!(p.allowedMoves & 0x30)) {
+        active = false;
+        return;
+      }
+      if (!p.stationary()) {
+        active = false;
+        return;
+      }
+      frame++;
+      if (frame >= 8) frame = 0;
+      if (trailIndex + 1 < p.trailCount && compareVertices(position, p.trail[trailIndex + 1])) {
+        trailIndex++;
+        if (trailIndex >= p.trailCount - 1) {
+          active = false;
+          return;
+        }
+      }
+      if (trailIndex + 1 < p.trailCount) {
+        switch (getDirection(position, p.trail[trailIndex + 1])) {
+          case 0x01: position.addx(-1); break; // left
+          case 0x02: position.addx(1); break;  // right
+          case 0x04: position.addy(-1); break; // up
+          case 0x08: position.addy(1); break;  // down
+        }
+      }
+    }
+    void render() {
+      // render handled in rendering.cpp to keep buffered and avoid flicker
     }
 };
 
@@ -149,10 +216,28 @@ class sparx {
     vertex position;
     // data byte: bit 0 for normal/super sparx, bit 1 for clockwise/counterclockwise, 
     // bit 2 for horizontal/vertical, bit 3-4 for speed (00=slowest, 11=fastest)
-    byte data = 0;
-    
+    byte data = 0b0000;
+    byte frame = 0; // animation frame index for rendering
     sparx() {
-      position = vertex(WIDTH / 2, HEIGHT / 2);
+      position = vertex(WIDTH / 2, 0);
+      data = 0;
+      frame = 0;
+    }
+    sparx(bool isSuper, bool clockwise, bool horizontal, byte speedLevel) {
+      position = vertex(WIDTH / 2, 0);
+      data = (isSuper ? 0x01 : 0x00) |
+             (clockwise ? 0x02 : 0x00) |
+             (horizontal ? 0x04 : 0x00) |
+             (speedLevel << 3);
+      frame = 0;
+    }
+    int getSpeed() {
+      switch ((data >> 3) & 0x03) {
+        case 0: return SLOW_MOVE;
+        case 1: return FAST_MOVE;
+        case 2: return (int)(FAST_MOVE * 1.5 + 0.5);
+        case 3: return FAST_MOVE * 2;
+      }
     }
 };
 #endif // ENTITIES_H

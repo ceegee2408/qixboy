@@ -8,6 +8,8 @@
 // - player_logic.h/cpp: Player movement and logic
 // - main.cpp: Setup and main loop
 
+#define EEPROM_HIGH_SCORE_ADDR 0 // Address in EEPROM to store high score (2 bytes)
+
 #include <Arduino.h>
 #include <Arduboy2.h>
 #include "config.h"
@@ -16,8 +18,18 @@
 #include "geometry.h"
 #include "rendering.h"
 #include "player_logic.h"
+#include "EEPROM.h"
 
 // Global game objects
+int score = 0;
+int highScores[6] = {
+  EEPROM.read(EEPROM_HIGH_SCORE_ADDR),
+  EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 1),
+  EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 2),
+  EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 3),
+  EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 4),
+  EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 5)
+};
 player p;
 perimeter perim;
 qix q;

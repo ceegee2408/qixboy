@@ -194,3 +194,28 @@ void drawAnimatedHLine(int x, int y, int w, bool fast) {
     }
   }
 }
+
+void drawSpriteFrame_P(const uint8_t *frames, int frameIdx, int frameW, int frameH, int x, int y) {
+  if (frameW <= 0 || frameH <= 0) return;
+  // frames is stored as contiguous [frame][row]
+  const uint8_t *base = frames + frameIdx * frameH;
+  for (int r = 0; r < frameH; r++) {
+    uint8_t bits = pgm_read_byte(base + r);
+    for (int c = 0; c < frameW; c++) {
+      bool lit = false;
+      if (frameW <= 5) {
+        lit = bits & (0x80 >> c); // 5-wide sprites use MSB-left
+      } else if (frameW == 7) {
+        lit = bits & (0x40 >> c); // 7-wide sprites stored in low 7 bits (MSB at 0x40)
+      } else {
+        lit = bits & (0x80 >> c);
+      }
+      if (lit) {
+        int px = x + c;
+        int py = y + r;
+        if (px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT)
+          arduboy.drawPixel(px, py, WHITE);
+      }
+    }
+  }
+}
