@@ -11,5 +11,6 @@ enum GAMESTATE {
 };
 
 extern GAMESTATE gameState;
+extern void initializeDeathAnimation();
 
 #endif // GAMESTATE_H

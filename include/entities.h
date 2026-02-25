@@ -9,9 +9,6 @@
 // Sprite frame counts
 #include "sprites.h"
 
-// Forward declare rendering helper used to start the death animation
-void initializeDeathAnimation();
-
 class player {
   private:
     // Packed data to save RAM
@@ -74,13 +71,11 @@ class player {
     }
 
     void loseLife() {
+      initializeDeathAnimation();
       byte lives = getLives();
       if (lives > 0) {
         lives--;
         data = (data & 0x3F) | (lives << 6);
-        // Trigger death animation state (do not set GAME_OVER yet)
-        gameState = DEATH_ANIMATION;
-        initializeDeathAnimation();
       } else {
         gameState = GAME_OVER;
       }
@@ -235,12 +230,11 @@ class fuze {
         nextTarget = p.position;
         hasNext = true;
       }
-
       if (hasNext && compareVertices(position, nextTarget)) {
         trailIndex++;
         if (trailIndex >= p.trailCount) {
-          p.loseLife();
           active = false;
+          p.loseLife();
           return;
         }
       }

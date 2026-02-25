@@ -15,11 +15,8 @@ static bool     bgSaved   = false;
 static uint32_t fzBgBuffer = 0;
 static vertex   fzBgSavedPos;
 static bool     fzBgSaved = false;
-
-// Death animation state
-int deathAnimRadius = 0;
+// Death animation center (set when the player dies)
 vertex deathAnimCenter;
-
 
 void saveBackground(vertex pos) {
   bgSavedPos = pos;
@@ -276,44 +273,13 @@ void fuze::render() {
 }
 
 void initializeDeathAnimation() {
-  deathAnimRadius = 0;
+  gameState = DEATH_ANIMATION;
   deathAnimCenter = p.position;
-}
-
-static void invertPixel(int x, int y) {
-  if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) return;
-  arduboy.drawPixel(x, y, arduboy.getPixel(x, y) ? BLACK : WHITE);
-}
-
-static void invertDiagLine(int x1, int y1, int x2, int y2) {
-  int dx = (x2 > x1) ? 1 : -1;
-  int dy = (y2 > y1) ? 1 : -1;
-  int x = x1, y = y1;
-  while (true) {
-    invertPixel(x, y);
-    if (x == x2 && y == y2) break;
-    x += dx;
-    y += dy;
-  }
+  restoreBackground();
 }
 
 void drawDeathAnimation() {
   int cx = deathAnimCenter.getx();
   int cy = deathAnimCenter.gety();
-  int r  = deathAnimRadius;
-
-  // Draw diamond outline at radius r — 4 diagonal lines
-  invertDiagLine(cx,     cy - r, cx + r, cy    ); // top -> right
-  invertDiagLine(cx + r, cy,     cx,     cy + r ); // right -> bottom
-  invertDiagLine(cx,     cy + r, cx - r, cy    ); // bottom -> left
-  invertDiagLine(cx - r, cy,     cx,     cy - r ); // left -> top
-
-  deathAnimRadius++;
-
-  // Animation ends when diamond fully exits the screen
-  int maxR = max(max(cx, WIDTH - cx), max(cy, HEIGHT - cy)) + 2;
-  if (deathAnimRadius > maxR) {
-    deathAnimRadius = 0;
-    gameState = PLAYING; // swap to GAME_OVER or life-loss logic when ready
-  }
+  arduboy.drawRect(cx - 4, cy - 4, 9, 9, WHITE);
 }

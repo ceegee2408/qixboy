@@ -22,11 +22,6 @@ void saveBackground(vertex pos);
 void restoreBackground();
 void saveFuzeBackground(vertex pos);
 void restoreFuzeBackground();
-// Death animation state and control
-void initializeDeathAnimation();
-void drawDeathAnimation();
-extern int deathAnimRadius;
-extern vertex deathAnimCenter;
 void initializeFill(bool speed);
 
 void drawLine(vertex v1, vertex v2);
@@ -36,6 +31,9 @@ void drawPlayer();
 void drawQix();
 void drawTrail();
 void drawDebug();
+extern vertex deathAnimCenter;
+void initializeDeathAnimation();
+void drawDeathAnimation();
 void drawFill();
 void scanlineFill(vertex* verts, int count, bool fast);
 // Draw a frame from a PROGMEM frames array stored as [frame][row].
