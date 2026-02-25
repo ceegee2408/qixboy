@@ -61,17 +61,7 @@ class player {
     }
 };
 
-class sparx {
-  public:
-    vertex position;
-    // data byte: bit 0 for normal/super sparx, bit 1 for clockwise/counterclockwise, 
-    // bit 2 for horizontal/vertical, bit 3-4 for speed (00=slowest, 11=fastest)
-    byte data = 1;
-    
-    sparx() {
-      position = vertex(WIDTH / 2, HEIGHT / 2);
-    }
-};
+
 
 class perimeter {
   public:
@@ -144,4 +134,15 @@ class qix {
     }
 };
 
+class sparx {
+  public:
+    vertex position;
+    // data byte: bit 0 for normal/super sparx, bit 1 for clockwise/counterclockwise, 
+    // bit 2 for horizontal/vertical, bit 3-4 for speed (00=slowest, 11=fastest)
+    byte data = 0;
+    
+    sparx() {
+      position = vertex(WIDTH / 2, HEIGHT / 2);
+    }
+};
 #endif // ENTITIES_H

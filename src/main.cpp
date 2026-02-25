@@ -24,6 +24,10 @@ qix q;
 sparx s[4];
 Arduboy2 arduboy;
 uint16_t frameCounter = 0;
+vertex currentFillVerts[MAX_VERTICES];
+int currentFillCount = 0;
+int fillAnimationFrame = 0;
+GAMESTATE gameState = PLAYING; // change to START_SCREEN once implimented
 
 void setup() {
     arduboy.boot();
@@ -39,20 +43,19 @@ void setup() {
 void loop() {
     if (!arduboy.nextFrame()) return;
     frameCounter++;
-    if (frameCounter >= 240) frameCounter = 0;
-    
-    // 1. Restore pixels behind sprite at old position
-    restoreBackground();
+    if (frameCounter >= 255) frameCounter = 0;
 
-    // 2. Move player
-    byte input = getInput();
-    updateActiveDirection(input);
-    updatePlayer(input);
-    
-    // 3. Save pixels at new position, then draw sprite
-    saveBackground(p.position);
-    drawPlayer();
-    drawDebug();
+    if (gameState == PLAYING) {
+      restoreBackground();
+      byte input = getInput();
+      updateActiveDirection(input);
+      updatePlayer(input);
+      saveBackground(p.position);
+      drawPlayer();
+      drawDebug();
+    } else if(gameState == FILL_ANIMATION) {
+      scanlineFill(currentFillVerts, currentFillCount, (p.allowedMoves & 0x10));
+    }
 
     arduboy.display();
 }

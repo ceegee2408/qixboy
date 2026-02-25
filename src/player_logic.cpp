@@ -135,6 +135,8 @@ void drawMove(byte input, bool speed) {
           }
           // If we couldn't re-find the player on the new perimeter, clear draw
           // mode bits so we don't remain stuck in draw mode.
+          gameState = FILL_ANIMATION;
+          initializeFill();
           if (!found) {
             p.allowedMoves &= ~0x30; // clear draw mode bits
             drawCooldown = true;     // prevent immediate re-entry if A/B still held

@@ -56,25 +56,6 @@ void drawLine(vertex v1, vertex v2) {
     arduboy.drawLine(v1.getx(), v1.gety(), v2.getx(), v2.gety());
 }
 
-void drawDotLine(vertex v1, vertex v2) {
-  // Draw a dotted line by only drawing every other pixel
-  int dx = v2.getx() - v1.getx();
-  int dy = v2.gety() - v1.gety();
-  int steps = max(abs(dx), abs(dy));
-  float xInc = dx / (float) steps;
-  float yInc = dy / (float) steps;
-  float x = v1.getx();
-  float y = v1.gety();
-  
-  for (int i = 0; i <= steps; i++) {
-    if (i % 2 == 0) { // Draw every other pixel
-      arduboy.drawPixel(round(x), round(y));
-    }
-    x += xInc;
-    y += yInc;
-  }
-}
-
 void drawPerimeter() {
   for (int i = 0; i < perim.vertexCount; i++) {
     vertex v1 = perim.vertices[i];
@@ -137,93 +118,65 @@ void drawDebug() {
 #endif
 }
 
-void drawFill() {
-  // Fill claimed territory (everything outside the perimeter polygon)
-  // Pre-compute polygon y-range so scanlines fully outside are filled quickly
-  int polyMinY = HEIGHT, polyMaxY = 0;
-  for (int i = 0; i < perim.vertexCount; i++) {
-    int vy = perim.vertices[i].gety();
-    if (vy < polyMinY) polyMinY = vy;
-    if (vy > polyMaxY) polyMaxY = vy;
-  }
-
-  for (int y = 0; y < HEIGHT; y++) {
-    if (y < polyMinY || y >= polyMaxY) {
-      // Scanline is outside the polygon's vertical extent — fill entire line
-      arduboy.drawFastHLine(0, y, WIDTH);
-      continue;
-    }
-
-    int xs[16];
-    int xCount = 0;
-    for (int i = 0; i < perim.vertexCount; i++) {
-      vertex v1 = perim.vertices[i];
-      vertex v2 = perim.vertices[(i + 1) % perim.vertexCount];
-      int minY = min(v1.gety(), v2.gety());
-      int maxY = max(v1.gety(), v2.gety());
-      if (y >= minY && y < maxY) {
-        // Only vertical edges contribute; horizontals excluded by y-range
-        if (xCount < 16) xs[xCount++] = v1.getx();
-      }
-    }
-
-    // Sort (insertion sort, small n)
-    for (int a = 1; a < xCount; a++) {
-      int key = xs[a];
-      int b = a - 1;
-      while (b >= 0 && xs[b] > key) { xs[b + 1] = xs[b]; b--; }
-      xs[b + 1] = key;
-    }
-
-    // Fill outside the polygon (complement of interior)
-    // Even-odd rule: starts outside, toggles at each crossing
-    // Outside spans: [0,xs[0]), [xs[1],xs[2]), ..., [xs[last],WIDTH)
-    if (xCount >= 2) {
-      if (xs[0] > 0)
-        arduboy.drawFastHLine(0, y, xs[0]);
-      for (int a = 1; a + 1 < xCount; a += 2) {
-        if (xs[a + 1] > xs[a])
-          arduboy.drawFastHLine(xs[a], y, xs[a + 1] - xs[a]);
-      }
-      if (xs[xCount - 1] < WIDTH)
-        arduboy.drawFastHLine(xs[xCount - 1], y, WIDTH - xs[xCount - 1]);
-    } else if (xCount == 0) {
-      // Inside y-range but no crossings — treat as fully outside
-      arduboy.drawFastHLine(0, y, WIDTH);
-    }
-  }
+void initializeFill(){
+  fillAnimationFrame = 0;
 }
 
-void scanlineFill(vertex* verts, int count) {
+// Prototype for animated horizontal line used by scanlineFill
+void drawAnimatedHLine(int x, int y, int w, int fast, int frames);
+
+void scanlineFill(vertex* verts, int count, bool fast) {
+  fillAnimationFrame++;
+  int currentFrame = fillAnimationFrame;
   for (int y = 0; y < HEIGHT; y++) {
-    int xs[16];
-    int xCount = 0;
+    byte xs[16];
+    byte xCount = 0;
+    // Compute intersections for this scanline
     for (int i = 0; i < count; i++) {
       vertex v1 = verts[i];
       vertex v2 = verts[(i + 1) % count];
-      // Find the x intersections of the horizontal ray at y with each edge
       int minY = min(v1.gety(), v2.gety());
       int maxY = max(v1.gety(), v2.gety());
-      if (y < minY || y >= maxY) continue;  
+      if (y < minY || y >= maxY) continue;
       if (v1.gety() == v2.gety()) continue; // Skip horizontal edges
       int x = (v1.getx() == v2.getx()) ? v1.getx()
         : v1.getx() + (y - v1.gety()) * (v2.getx() - v1.getx()) / (v2.gety() - v1.gety());
-      if (xCount < 16) {
-        xs[xCount++] = x;
-      }
+      if (xCount < 16) xs[xCount++] = x;
     }
     // Sort xs (insertion sort, small n)
     for (int a = 1; a < xCount; a++) {
-      int key = xs[a], b = a - 1;
+      byte key = xs[a], b = a - 1;
       while (b >= 0 && xs[b] > key) { 
         xs[b + 1] = xs[b]; 
         b--; 
       }
       xs[b + 1] = key;
     }
-    // Fill between pairs
-    for (int a = 0; a + 1 < xCount; a += 2) {
-      arduboy.drawFastHLine(xs[a], y, xs[a+1] - xs[a]);
+    // check if fill was fast or slow and draw accordingly
+
+    if (fast) {
+      for (int a = 0; a + 1 < xCount; a += 2) {
+        drawAnimatedHLine(xs[a], y, xs[a+1] - xs[a], 1, currentFrame);
+        currentFrame -= xs[a+1] - xs[a]; 
+      }
+    } else {
+      for (int a = 0; a + 1 < xCount; a += 2) {
+        drawAnimatedHLine(xs[a], y, xs[a+1] - xs[a], 0, currentFrame);
+        currentFrame -= xs[a+1] - xs[a]; 
+      }
     }
+  }
+}
+
+void drawAnimatedHLine(int x, int y, int w, int fast, int _frames) { 
+  //check if line will be drawn
+  if (w < _frames) return;
+  // check if fast or slow and draw accordingly
+  x += _frames; // skip to current animation frame
+  if (fast) {
+    bool color = (y+x) % 2 == 0;
+    arduboy.drawPixel(x, y, color);
+  } else {
+    arduboy.drawPixel(x, y, WHITE);
   }
 }
