@@ -20,7 +20,7 @@ class player {
     byte allowedMoves = 0x03; // bit 0-3 for left, right, up, down; bit 4 for fast move, bit 5 for slow move
     byte prevInput = 0; // previous frame input
     vertex position;
-    vertex trail[MAX_VERTICES / 2]; // store trail vertices for filling
+    vertex trail[MAX_VERTICES / 4]; // store trail vertices for filling
     byte trailCount = 0;
 
     player() {
@@ -79,10 +79,22 @@ class player {
     }
 
     void addTrailVertex(vertex v) {
-      if (trailCount < MAX_VERTICES / 2) {
+      if (trailCount < MAX_VERTICES / 4) {
         trail[trailCount] = v;
         trailCount++;
       }
+    }
+
+    // Frames since last movement. Increment with `tickFrame()` each game frame;
+    // call `noteMoved()` from movement code when the player actually moves.
+    uint16_t framesSinceMove = 0;
+    inline void noteMoved() { framesSinceMove = 0; }
+    inline void tickFrame() { framesSinceMove++; }
+
+    // Helper: return true when currently in draw mode and have been idle
+    // for at least `threshold` frames.
+    inline bool isInDrawModeAndIdle(uint16_t threshold) {
+      return ((allowedMoves & 0x30) != 0) && (framesSinceMove >= threshold);
     }
 };
 
@@ -190,15 +202,30 @@ class fuze {
       }
       frame++;
       if (frame >= 8) frame = 0;
-      if (trailIndex + 1 < p.trailCount && compareVertices(position, p.trail[trailIndex + 1])) {
+      // Determine the next target along the trail. The live segment (from
+      // last trail vertex to p.position) is considered as the final target.
+      bool hasNext = false;
+      vertex nextTarget = position;
+      if (trailIndex + 1 < p.trailCount) {
+        nextTarget = p.trail[trailIndex + 1];
+        hasNext = true;
+      } else if (trailIndex + 1 == p.trailCount) {
+        // Next target is the player's current position (live segment)
+        nextTarget = p.position;
+        hasNext = true;
+      }
+
+      if (hasNext && compareVertices(position, nextTarget)) {
         trailIndex++;
-        if (trailIndex >= p.trailCount - 1) {
+        // If we've reached or passed the live endpoint, stop the fuze.
+        if (trailIndex >= p.trailCount) {
           active = false;
           return;
         }
       }
-      if (trailIndex + 1 < p.trailCount) {
-        switch (getDirection(position, p.trail[trailIndex + 1])) {
+
+      if (hasNext) {
+        switch (getDirection(position, nextTarget)) {
           case 0x01: position.addx(-1); break; // left
           case 0x02: position.addx(1); break;  // right
           case 0x04: position.addy(-1); break; // up
@@ -206,9 +233,7 @@ class fuze {
         }
       }
     }
-    void render() {
-      // render handled in rendering.cpp to keep buffered and avoid flicker
-    }
+    void render();
 };
 
 class sparx {

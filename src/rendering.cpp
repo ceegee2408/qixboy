@@ -11,6 +11,11 @@ static uint32_t bgBuffer  = 0;
 static vertex   bgSavedPos;
 static bool     bgSaved   = false;
 
+// Separate background buffer for fuze sprite to avoid smearing
+static uint32_t fzBgBuffer = 0;
+static vertex   fzBgSavedPos;
+static bool     fzBgSaved = false;
+
 void saveBackground(vertex pos) {
   bgSavedPos = pos;
   bgSaved    = true;
@@ -43,6 +48,40 @@ void restoreBackground() {
       }
   }
   bgSaved = false;
+}
+
+void saveFuzeBackground(vertex pos) {
+  fzBgSavedPos = pos;
+  fzBgSaved = true;
+  fzBgBuffer = 0;
+  int sx = pos.getx() - PLAYER_SIZE;
+  int sy = pos.gety() - PLAYER_SIZE;
+  for (int row = 0; row < SPRITE_SIZE; row++) {
+    for (int col = 0; col < SPRITE_SIZE; col++) {
+      int px = sx + col, py = sy + row;
+      if (px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
+        if (arduboy.getPixel(px, py)) {
+          fzBgBuffer |= (1UL << (row * SPRITE_SIZE + col));
+        }
+      }
+    }
+  }
+}
+
+void restoreFuzeBackground() {
+  if (!fzBgSaved) return;
+  int sx = fzBgSavedPos.getx() - PLAYER_SIZE;
+  int sy = fzBgSavedPos.gety() - PLAYER_SIZE;
+  for (int row = 0; row < SPRITE_SIZE; row++) {
+    for (int col = 0; col < SPRITE_SIZE; col++) {
+      int px = sx + col, py = sy + row;
+      if (px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
+        bool lit = (fzBgBuffer >> (row * SPRITE_SIZE + col)) & 1;
+        arduboy.drawPixel(px, py, lit ? WHITE : BLACK);
+      }
+    }
+  }
+  fzBgSaved = false;
 }
 
 void drawLine(vertex v1, vertex v2) {
@@ -218,4 +257,15 @@ void drawSpriteFrame_P(const uint8_t *frames, int frameIdx, int frameW, int fram
       }
     }
   }
+}
+
+// Implement fuze rendering here to keep drawing code centralized and avoid
+// flicker. Uses the PROGMEM frames in `fuzeSpriteFrames`.
+void fuze::render() {
+  if (!active) return;
+  int fx = position.getx() - PLAYER_SIZE;
+  int fy = position.gety() - PLAYER_SIZE;
+  // fuze.frame may run 0..7; frameset is 4 frames, so modulo 4
+  int fidx = frame % 4;
+  drawSpriteFrame_P((const uint8_t*)fuzeSpriteFrames, fidx, SPRITE_SIZE, SPRITE_SIZE, fx, fy);
 }

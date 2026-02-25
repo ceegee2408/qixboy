@@ -34,12 +34,15 @@ player p;
 perimeter perim;
 qix q;
 sparx s[4];
+fuze fz;
 Arduboy2 arduboy;
 uint16_t frameCounter = 0;
-vertex currentFillVerts[MAX_VERTICES];
+vertex currentFillVerts[MAX_VERTICES / 4];
 int currentFillCount = 0;
 int fillAnimationFrame = 0;
 bool fillDith = false;
+// How many frames idle in draw mode before fuze begins
+const uint16_t FUZE_IDLE_THRESHOLD = 45;
 GAMESTATE gameState = PLAYING; // change to START_SCREEN once implimented
 
 void setup() {
@@ -50,6 +53,8 @@ void setup() {
     updateCanMove();
     saveBackground(p.position);
     drawPlayer();
+    // Advance player's idle/movement frame counter every loop iteration
+    p.tickFrame();
     arduboy.display();
 }
 
@@ -59,13 +64,27 @@ void loop() {
     if (frameCounter >= 255) frameCounter = 0;
 
     if (gameState == PLAYING) {
+      // Restore previous fuze render first, then player background.
+      restoreFuzeBackground();
       restoreBackground();
       byte input = getInput();
       updateActiveDirection(input);
       updatePlayer(input);
+
+      // Start fuze if player is idle in draw mode long enough
+      if (p.isInDrawModeAndIdle(FUZE_IDLE_THRESHOLD)) {
+        if (!fz.active) fz.begin();
+      }
+      // Always update fuze state (it will deactivate when appropriate)
+      fz.update();
+
       if (gameState == PLAYING) {
         saveBackground(p.position);
         drawPlayer();
+        // Restore any previous fuze area was done earlier; now render fuze
+        fz.render();
+        // Save fuze background for next frame (so we can erase it before next draw)
+        if (fz.active) saveFuzeBackground(fz.position);
         drawDebug();
       }
     } else if(gameState == FILL_ANIMATION) {
@@ -75,6 +94,9 @@ void loop() {
       saveBackground(p.position);
       drawPlayer();
     }
+
+    // Advance player's idle/movement frame counter every loop iteration
+    p.tickFrame();
 
     arduboy.display();
 }

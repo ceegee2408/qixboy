@@ -83,7 +83,8 @@ void drawMove(byte input, bool speed) {
         p.addTrailVertex(p.position);
       }
       p.setLastTrailDir(p.getActiveDir());
-      movePlayer(p.allowedMoves);
+      bool moved = movePlayer(p.allowedMoves);
+      (void)moved;
     }
     
     // Check if player has returned to the perimeter (only after moving away from start)
@@ -247,7 +248,9 @@ void updateCanDraw() {
   p.allowedMoves = allowedMoves | (p.allowedMoves & 0x30); // Preserve draw mode bits
 }
 
-void movePlayer(byte allowedMoves) {
+bool movePlayer(byte allowedMoves) {
+  // Return true when the player actually changed position this call.
+  vertex prevPos = p.position;
   // Only move if active direction is allowed
   byte activeDir = p.getActiveDir();
   if (activeDir & allowedMoves) {
@@ -266,6 +269,12 @@ void movePlayer(byte allowedMoves) {
       p.position.addy(1);
     }
   }
+
+  if (p.position.getx() != prevPos.getx() || p.position.gety() != prevPos.gety()) {
+    p.noteMoved();
+    return true;
+  }
+  return false;
 }
 
 void perimeterMove(byte input) {
@@ -273,7 +282,8 @@ void perimeterMove(byte input) {
   if (frameCounter % FAST_MOVE == 0) {
     // Call movePlayer with perimeter constraints
     vertex prevPos = p.position;
-    movePlayer(p.allowedMoves);
+    bool moved = movePlayer(p.allowedMoves);
+    (void)moved;
     if (p.position.getx() != prevPos.getx() || p.position.gety() != prevPos.gety()) {
       updatePerimIndex();
       updateCanMove();

@@ -20,6 +20,8 @@ extern bool fillDith;
 
 void saveBackground(vertex pos);
 void restoreBackground();
+void saveFuzeBackground(vertex pos);
+void restoreFuzeBackground();
 void initializeFill(bool speed);
 
 void drawLine(vertex v1, vertex v2);
