@@ -153,24 +153,20 @@ void scanlineFill(vertex* verts, int count, bool fast) {
       xs[b + 1] = key;
     }
     // check if fill was fast or slow and draw accordingly
-
-    if (fast) {
-      for (int a = 0; a + 1 < xCount; a += 2) {
-        drawAnimatedHLine(xs[a], y, xs[a+1] - xs[a], 1, currentFrame);
+    for (int a = 0; a + 1 < xCount; a += 2) {
+        if (xs[a+1] - xs[a] <= currentFrame) continue; // Skip if line not reached by animation
+        drawAnimatedHLine(xs[a], y, xs[a+1] - xs[a], fast, currentFrame);
         currentFrame -= xs[a+1] - xs[a]; 
-      }
-    } else {
-      for (int a = 0; a + 1 < xCount; a += 2) {
-        drawAnimatedHLine(xs[a], y, xs[a+1] - xs[a], 0, currentFrame);
-        currentFrame -= xs[a+1] - xs[a]; 
-      }
+        if (currentFrame <= 0) {
+            gameState = PLAYING;
+            fillAnimationFrame = 0;
+            return;
+        };
     }
   }
 }
 
 void drawAnimatedHLine(int x, int y, int w, int fast, int _frames) { 
-  //check if line will be drawn
-  if (w < _frames) return;
   // check if fast or slow and draw accordingly
   x += _frames; // skip to current animation frame
   if (fast) {

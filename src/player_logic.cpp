@@ -6,6 +6,10 @@
 // updateDrawAllowance blocks re-entry until the button is released.
 static bool drawCooldown = false;
 
+// External fill capture buffer (defined in main.cpp)
+extern vertex currentFillVerts[];
+extern int currentFillCount;
+
 byte getInput() {
   byte input = 0;
   if (arduboy.pressed(LEFT_BUTTON)) {
@@ -496,26 +500,39 @@ void updatePerim() {
   bool qixInTestPoly = isInsidePolygon(q.position, scratch, writeIdx);
 
   if (qixInTestPoly) {
-    // Backward arc polygon is already in scratch — reuse it.
+    // New perimeter = scratch (trail + backward arc) — already built.
+    // Captured area = forward arc + reversed trail.
+    int ci = 0;
+    int cidx = startIdxNext;
+    if (startIdx == startIdxNext) cidx = (cidx + 1) % perim.vertexCount;
+    while (cidx != endIdx && ci < MAX_VERTICES) {
+      currentFillVerts[ci++] = perim.vertices[cidx];
+      cidx = (cidx + 1) % perim.vertexCount;
+    }
+    if (endIdx != endIdxNext && ci < MAX_VERTICES)
+      currentFillVerts[ci++] = perim.vertices[endIdx];
+    for (int i = p.trailCount - 1; i >= 0 && ci < MAX_VERTICES; i--)
+      currentFillVerts[ci++] = p.trail[i];
+    currentFillCount = ci;
+
+    // scratch already holds the new perimeter
   } else {
-    // Keep forward arc: startIdxNext → … → endIdx, then reversed trail.
+    // Captured area = trail + backward arc — that's currently in scratch.
+    for (int i = 0; i < writeIdx; i++) currentFillVerts[i] = scratch[i];
+    currentFillCount = writeIdx;
+
+    // Rebuild scratch as forward arc + reversed trail (existing logic)
     writeIdx = 0;
     idx = startIdxNext;
-    // Skip first arc vertex if it duplicates trail[0] (corner entry)
-    if (startIdx == startIdxNext) {
-      idx = (idx + 1) % perim.vertexCount;
-    }
+    if (startIdx == startIdxNext) idx = (idx + 1) % perim.vertexCount;
     while (idx != endIdx && writeIdx < MAX_VERTICES) {
       scratch[writeIdx++] = perim.vertices[idx];
       idx = (idx + 1) % perim.vertexCount;
     }
-    // Include endIdx connector — skip if it duplicates reversed trail's first vertex (corner exit)
-    if (endIdx != endIdxNext && writeIdx < MAX_VERTICES) {
+    if (endIdx != endIdxNext && writeIdx < MAX_VERTICES)
       scratch[writeIdx++] = perim.vertices[endIdx];
-    }
-    for (int i = p.trailCount - 1; i >= 0 && writeIdx < MAX_VERTICES; i--) {
+    for (int i = p.trailCount - 1; i >= 0 && writeIdx < MAX_VERTICES; i--)
       scratch[writeIdx++] = p.trail[i];
-    }
   }
 
   // Copy scratch back to perimeter
