@@ -51,12 +51,17 @@ void loop() {
       byte input = getInput();
       updateActiveDirection(input);
       updatePlayer(input);
-      saveBackground(p.position);
-      drawPlayer();
-      drawDebug();
+      if (gameState == PLAYING) {
+        saveBackground(p.position);
+        drawPlayer();
+        drawDebug();
+      }
     } else if(gameState == FILL_ANIMATION) {
+      restoreBackground();
       scanlineFill(currentFillVerts, currentFillCount, fillDith);
       drawPerimeter();
+      saveBackground(p.position);
+      drawPlayer();
     }
 
     arduboy.display();

@@ -134,6 +134,16 @@ class qix {
     }
 };
 
+class fuze {
+  public:
+    vertex position;
+    int speed = 1;
+    
+    fuze() {
+      position = vertex(WIDTH / 2, HEIGHT / 2);
+    }
+};
+
 class sparx {
   public:
     vertex position;

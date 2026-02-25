@@ -1,14 +1,7 @@
 #include "rendering.h"
 
-// Diamond outline, SPRITE_SIZE x SPRITE_SIZE (5x5), MSB = leftmost pixel.
-//   Row 0:  00100  = 0x20
-//   Row 1:  01010  = 0x50
-//   Row 2:  10001  = 0x88
-//   Row 3:  01010  = 0x50
-//   Row 4:  00100  = 0x20
-static const uint8_t PROGMEM playerSpriteRows[SPRITE_SIZE] = {
-    0x20, 0x50, 0x88, 0x50, 0x20
-};
+// Sprite data moved to include/sprites.h and src/sprites.cpp
+#include "sprites.h"
 
 // Packs SPRITE_SIZE^2 (25) pixel states into a uint32_t.
 static_assert(SPRITE_SIZE * SPRITE_SIZE <= 32,
@@ -34,7 +27,6 @@ void saveBackground(vertex pos) {
           }
       }
   }
-  arduboy.display(); // on for debugging
 }
 
 void restoreBackground() {
@@ -51,7 +43,6 @@ void restoreBackground() {
       }
   }
   bgSaved = false;
-  arduboy.display(); // on for debugging
 }
 
 void drawLine(vertex v1, vertex v2) {
@@ -181,7 +172,6 @@ void scanlineFill(vertex* verts, int count, bool fast) {
     gameState = PLAYING;
     fillAnimationFrame = 0;
     saveBackground(p.position);
-    drawPlayer();
   }
 }
 
@@ -190,11 +180,13 @@ void drawAnimatedHLine(int x, int y, int w, bool fast) {
   // alternating pixels) to produce a dashed appearance. Do not call
   // `display()` or `delay()` here — the main loop handles frame timing.
   if (w <= 0) return;
+  //exceptions
+  if (y == 0) return;
   if (fast) {
     //clear line to reduce ghosting
     arduboy.drawFastHLine(x, y, w, BLACK);
     for (int i = 0; i < w; i++) {
-      if (((i + y) & 1) == 0) arduboy.drawPixel(x + i, y, WHITE);
+      if (((x + i + y) & 1) == 0) arduboy.drawPixel(x + i, y, WHITE);
     }
   } else {
     for (int i = 0; i < w; i++) {
