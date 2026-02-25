@@ -37,19 +37,19 @@ void saveBackground(vertex pos) {
 }
 
 void restoreBackground() {
-    if (!bgSaved) return;
-    int sx = bgSavedPos.getx() - PLAYER_SIZE;
-    int sy = bgSavedPos.gety() - PLAYER_SIZE;
-    for (int row = 0; row < SPRITE_SIZE; row++) {
-        for (int col = 0; col < SPRITE_SIZE; col++) {
-            int px = sx + col, py = sy + row;
-            if (px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
-                bool lit = (bgBuffer >> (row * SPRITE_SIZE + col)) & 1;
-                arduboy.drawPixel(px, py, lit ? WHITE : BLACK);
-            }
-        }
-    }
-    bgSaved = false;
+  if (!bgSaved) return;
+  int sx = bgSavedPos.getx() - PLAYER_SIZE;
+  int sy = bgSavedPos.gety() - PLAYER_SIZE;
+  for (int row = 0; row < SPRITE_SIZE; row++) {
+      for (int col = 0; col < SPRITE_SIZE; col++) {
+          int px = sx + col, py = sy + row;
+          if (px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
+              bool lit = (bgBuffer >> (row * SPRITE_SIZE + col)) & 1;
+              arduboy.drawPixel(px, py, lit ? WHITE : BLACK);
+          }
+      }
+  }
+  bgSaved = false;
 }
 
 void drawLine(vertex v1, vertex v2) {
@@ -125,9 +125,15 @@ void drawDebug() {
   // Clear a small area in the top-left corner
   arduboy.fillRect(WIDTH / 2, HEIGHT / 2, 40, 8, BLACK);
   arduboy.setCursor(WIDTH / 2, HEIGHT / 2);
+  arduboy.setTextSize(1);
   arduboy.print(p.getPerimIndex(0));
   arduboy.print(F("-"));
   arduboy.print(p.getPerimIndex(1));
+  arduboy.setCursor(WIDTH / 2, HEIGHT / 2 + 8);
+  arduboy.print(F(" M:"));  
+  for(int i = 0; i < 6; i++) {
+    arduboy.print((p.allowedMoves & (1 << i)) ? 1 : 0);
+  }
 #endif
 }
 

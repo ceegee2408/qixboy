@@ -2,6 +2,10 @@
 #include "geometry.h"
 #include "rendering.h"
 
+// Set to true when a draw completes while A/B is still held, so
+// updateDrawAllowance blocks re-entry until the button is released.
+static bool drawCooldown = false;
+
 byte getInput() {
   byte input = 0;
   if (arduboy.pressed(LEFT_BUTTON)) {
@@ -42,7 +46,7 @@ void updateActiveDirection(byte input) {
     p.setActiveDir(currentDir);
   }
   // else: keep current activeDir
-  
+
   p.prevInput = input;
 }
 
@@ -103,6 +107,7 @@ void drawMove(byte input, bool speed) {
           // Update the perimeter shape with the trail
           updatePerim();
           // Re-find player position on the new perimeter — check exact corners first
+          bool found = false;
           for (int j = 0; j < perim.vertexCount; j++) {
             vertex nv1 = perim.vertices[j];
             vertex nv2 = perim.vertices[(j + 1) % perim.vertexCount];
@@ -110,22 +115,34 @@ void drawMove(byte input, bool speed) {
             if (compareVertices(p.position, nv1)) {
               p.setPerimIndex(0, j);
               p.setPerimIndex(1, j);
+              found = true;
               break;
             }
             int nextIdx = (j + 1) % perim.vertexCount;
             if (compareVertices(p.position, nv2)) {
               p.setPerimIndex(0, nextIdx);
               p.setPerimIndex(1, nextIdx);
+              found = true;
               break;
             }
             // Mid-edge match
             if (pointOnSegment(p.position, nv1, nv2)) {
               p.setPerimIndex(0, j);
               p.setPerimIndex(1, nextIdx);
+              found = true;
               break;
             }
           }
+          // If we couldn't re-find the player on the new perimeter, clear draw
+          // mode bits so we don't remain stuck in draw mode.
+          if (!found) {
+            p.allowedMoves &= ~0x30; // clear draw mode bits
+            drawCooldown = true;     // prevent immediate re-entry if A/B still held
+            updateCanMove();
+            return;
+          }
           // Perimeter indices are normalized above — compute allowed moves
+          drawCooldown = true;       // prevent immediate re-entry if A/B still held
           updateCanMove();
           return; // Exit drawMove entirely to avoid updateCanDraw overwriting allowedMoves
         }
@@ -344,10 +361,16 @@ void updateCanMove() {
 
 void updateDrawAllowance(byte input) {
   if (p.allowedMoves & 0x30) {
-    // Preserve the existing draw mode bit
+    // Already in draw mode — preserve the existing bit.
     return;
   }
-  if (!(input & 0x30)) return;
+  if (!(input & 0x30)) {
+    // A/B released — reset cooldown so next press works normally.
+    drawCooldown = false;
+    return;
+  }
+  // Block re-entry for the remainder of the held press after a draw completes.
+  if (drawCooldown) return;
   
   // Check if active direction is not allowed by perimeter movement
   byte activeDir = p.getActiveDir();
@@ -363,7 +386,6 @@ void updateDrawAllowance(byte input) {
     
     // Only allow draw mode if next position is inside the perimeter
     if (isInsidePolygon(nextPos, perim.vertices, perim.vertexCount)) {
-      // Set only the bit corresponding to the button being pressed
       p.allowedMoves |= (input & 0x30);
       // Initialize trail when entering draw mode (one-shot)
       // Determine the directed perimeter edge (i -> i+1) that contains the player

@@ -40,7 +40,7 @@ void loop() {
     if (!arduboy.nextFrame()) return;
     frameCounter++;
     if (frameCounter >= 240) frameCounter = 0;
-
+    
     // 1. Restore pixels behind sprite at old position
     restoreBackground();
 
@@ -48,7 +48,7 @@ void loop() {
     byte input = getInput();
     updateActiveDirection(input);
     updatePlayer(input);
-
+    
     // 3. Save pixels at new position, then draw sprite
     saveBackground(p.position);
     drawPlayer();
