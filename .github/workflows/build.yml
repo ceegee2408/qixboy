@@ -12,43 +12,24 @@ jobs:
       # Step 1: Checkout repository
       - uses: actions/checkout@v4
 
-      # Step 2: Setup Arduino CLI
-      - uses: arduino/setup-arduino-cli@v1
-
-      # Step 3: Add the Arduboy Homemade package URL
-      - name: Configure Arduboy Homemade board manager URL
+      # Step 2: Install PlatformIO
+      - name: Install PlatformIO
         run: |
-          arduino-cli config init
-          arduino-cli config add board_manager.additional_urls \
-            https://raw.githubusercontent.com/MrBlinky/Arduboy-homemade-package/master/package_arduboy_homemade_index.json
+          python3 -m pip install --upgrade pip
+          pip install platformio
 
-      # Step 4: Update index and install Arduboy core
-      - name: Update index and install Arduboy core
+      # Step 3: Build project
+      - name: Build
         run: |
-          arduino-cli core update-index
-          arduino-cli core install arduboy-homemade:avr
+          pio run
 
-      # Step 5: Install Arduboy2 library
-      - name: Install Arduboy2 library
-        run: |
-          arduino-cli lib update-index
-          arduino-cli lib install Arduboy2
-
-      # Step 6: Compile sketch
-      - name: Compile sketch
-        run: |
-          arduino-cli compile \
-            --fqbn "arduboy-homemade:avr:Arduboy production" \
-            --output-dir build \
-            YourSketchFolder
-
-      # Step 7: Export HEX as qixboy.hex
+      # Step 4: Copy HEX to docs/qixboy.hex
       - name: Export HEX
         run: |
           mkdir -p docs
-          cp build/*.hex docs/qixboy.hex
+          cp .pio/build/arduboy/firmware.hex docs/qixboy.hex
 
-      # Step 8: Commit updated HEX
+      # Step 5: Commit HEX
       - name: Commit HEX
         run: |
           git config user.name "github-actions"
