@@ -9,37 +9,46 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Step 1: Checkout repository
       - uses: actions/checkout@v4
+
+      # Step 2: Setup Arduino CLI
       - uses: arduino/setup-arduino-cli@v1
 
-      - name: Configure Arduboy board manager URL
+      # Step 3: Add the Arduboy Homemade package URL
+      - name: Configure Arduboy Homemade board manager URL
         run: |
           arduino-cli config init
           arduino-cli config add board_manager.additional_urls \
             https://raw.githubusercontent.com/MrBlinky/Arduboy-homemade-package/master/package_arduboy_homemade_index.json
 
+      # Step 4: Update index and install Arduboy core
       - name: Update index and install Arduboy core
         run: |
           arduino-cli core update-index
-          arduino-cli core install arduboy:avr
+          arduino-cli core install arduboy-homemade:avr
 
+      # Step 5: Install Arduboy2 library
       - name: Install Arduboy2 library
         run: |
           arduino-cli lib update-index
           arduino-cli lib install Arduboy2
 
-      - name: Compile
+      # Step 6: Compile sketch
+      - name: Compile sketch
         run: |
           arduino-cli compile \
-            --fqbn arduboy:avr:arduboy \
+            --fqbn "arduboy-homemade:avr:Arduboy production" \
             --output-dir build \
             YourSketchFolder
 
+      # Step 7: Export HEX as qixboy.hex
       - name: Export HEX
         run: |
           mkdir -p docs
           cp build/*.hex docs/qixboy.hex
 
+      # Step 8: Commit updated HEX
       - name: Commit HEX
         run: |
           git config user.name "github-actions"
