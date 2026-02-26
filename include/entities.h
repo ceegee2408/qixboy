@@ -13,9 +13,9 @@ class player {
   private:
     // Packed data to save RAM
     byte directionData = 0; // lower 4 bits: activeDir, upper 4 bits: lastTrailDir
-    uint16_t perimIndexPacked = (1 << 6) | 2; // lower 6 bits: index[0], next 6 bits: index[1]
-    uint16_t drawStartIndexPacked = 0; // lower 6 bits: index[0], next 6 bits: index[1]
-    uint16_t drawEndIndexPacked = 0; // lower 6 bits: index[0], next 6 bits: index[1]
+    uint16_t perimIndexPacked = (1 << 8) | 2; // lower 8 bits: index[0], upper 8 bits: index[1]
+    uint16_t drawStartIndexPacked = 0; // lower 8 bits: index[0], upper 8 bits: index[1]
+    uint16_t drawEndIndexPacked = 0; // lower 8 bits: index[0], upper 8 bits: index[1]
 
   public:
     byte data = NUM_LIVES << 6; // upper 2 bits for lives, bit 2 for stationary flag
@@ -37,24 +37,24 @@ class player {
     inline void setLastTrailDir(byte dir) { directionData = (directionData & 0x0F) | ((dir & 0x0F) << 4); }
 
     // Perimeter index accessors
-    inline byte getPerimIndex(byte i) { return (i == 0) ? (perimIndexPacked & 0x3F) : ((perimIndexPacked >> 6) & 0x3F); }
+    inline byte getPerimIndex(byte i) { return (i == 0) ? (perimIndexPacked & 0x00FF) : ((perimIndexPacked >> 8) & 0x00FF); }
     inline void setPerimIndex(byte i, byte val) {
-      if (i == 0) perimIndexPacked = (perimIndexPacked & 0xFFC0) | (val & 0x3F);
-      else perimIndexPacked = (perimIndexPacked & 0x003F) | ((val & 0x3F) << 6);
+      if (i == 0) perimIndexPacked = (perimIndexPacked & 0xFF00) | (val & 0xFF);
+      else perimIndexPacked = (perimIndexPacked & 0x00FF) | ((val & 0xFF) << 8);
     }
 
     // Draw start index accessors
-    inline byte getDrawStartIndex(byte i) { return (i == 0) ? (drawStartIndexPacked & 0x3F) : ((drawStartIndexPacked >> 6) & 0x3F); }
+    inline byte getDrawStartIndex(byte i) { return (i == 0) ? (drawStartIndexPacked & 0x00FF) : ((drawStartIndexPacked >> 8) & 0x00FF); }
     inline void setDrawStartIndex(byte i, byte val) {
-      if (i == 0) drawStartIndexPacked = (drawStartIndexPacked & 0xFFC0) | (val & 0x3F);
-      else drawStartIndexPacked = (drawStartIndexPacked & 0x003F) | ((val & 0x3F) << 6);
+      if (i == 0) drawStartIndexPacked = (drawStartIndexPacked & 0xFF00) | (val & 0xFF);
+      else drawStartIndexPacked = (drawStartIndexPacked & 0x00FF) | ((val & 0xFF) << 8);
     }
 
     // Draw end index accessors
-    inline byte getDrawEndIndex(byte i) { return (i == 0) ? (drawEndIndexPacked & 0x3F) : ((drawEndIndexPacked >> 6) & 0x3F); }
+    inline byte getDrawEndIndex(byte i) { return (i == 0) ? (drawEndIndexPacked & 0x00FF) : ((drawEndIndexPacked >> 8) & 0x00FF); }
     inline void setDrawEndIndex(byte i, byte val) {
-      if (i == 0) drawEndIndexPacked = (drawEndIndexPacked & 0xFFC0) | (val & 0x3F);
-      else drawEndIndexPacked = (drawEndIndexPacked & 0x003F) | ((val & 0x3F) << 6);
+      if (i == 0) drawEndIndexPacked = (drawEndIndexPacked & 0xFF00) | (val & 0xFF);
+      else drawEndIndexPacked = (drawEndIndexPacked & 0x00FF) | ((val & 0xFF) << 8);
     }
 
     bool stationary() {

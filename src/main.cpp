@@ -37,7 +37,7 @@ sparx s[4];
 fuze fz;
 Arduboy2 arduboy;
 uint16_t frameCounter = 0;
-vertex currentFillVerts[MAX_VERTICES / 4];
+vertex currentFillVerts[MAX_VERTICES];
 int currentFillCount = 0;
 int fillAnimationFrame = 0;
 bool fillDith = false;
@@ -107,4 +107,3 @@ void loop() {
 
     arduboy.display();
 }
-
