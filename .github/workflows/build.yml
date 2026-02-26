@@ -2,7 +2,6 @@ name: Build Arduboy HEX
 
 on:
   push:
-    branches: [ master ]
 
 permissions:
   contents: write
