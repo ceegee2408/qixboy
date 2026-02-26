@@ -1,0 +1,44 @@
+name: Build Arduboy HEX
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v1
+
+      - name: Install Arduboy core
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install arduboy:avr \
+            --additional-urls https://raw.githubusercontent.com/Arduboy/arduino-arduboy/master/package_arduboy_index.json
+
+      - name: Install Arduboy2 library
+        run: |
+          arduino-cli lib update-index
+          arduino-cli lib install Arduboy2
+
+      - name: Compile
+        run: |
+          arduino-cli compile \
+            --fqbn arduboy:avr:arduboy \
+            --output-dir build \
+            YourSketchFolder
+
+      - name: Export HEX
+        run: |
+          mkdir -p docs
+          cp build/*.hex docs/latest.hex
+
+      - name: Commit HEX
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add docs/latest.hex
+          git commit -m "Auto-update latest.hex" || echo "No changes"
+          git push
