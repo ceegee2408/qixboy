@@ -1,13 +1,3 @@
-// Qixboy - A Qix clone for Arduboy
-// File structure:
-// - config.h: Game constants and defines
-// - types.h: Basic types (vertex)
-// - entities.h: Game entities (player, sparx, perimeter, qix)
-// - geometry.h/cpp: Geometry utilities
-// - rendering.h/cpp: Drawing functions
-// - player_logic.h/cpp: Player movement and logic
-// - main.cpp: Setup and main loop
-
 #define EEPROM_HIGH_SCORE_ADDR 0 // Address in EEPROM to store high score (2 bytes)
 
 #include <Arduino.h>
@@ -42,7 +32,79 @@ int currentFillCount = 0;
 int fillAnimationFrame = 0;
 bool fillDith = false;
 const uint16_t FUZE_IDLE_THRESHOLD = 45;
-GAMESTATE gameState = PLAYING; // change to START_SCREEN once implimented
+GAMESTATE gameState = START_SCREEN; // change to START_SCREEN once implimented
+
+namespace {
+  using FrameHandler = void (*)();
+
+  void tickMenuFrame() {
+    // create menu sprite
+    byte input = getInput();
+    arduboy.setCursor(0, 0);
+    arduboy.setTextSize(1);
+    arduboy.print(F("Qixboy"));
+    // temp
+    if (input) {
+      gameState = PLAYING;
+    }
+    // drawMenu();
+  }
+
+  void tickPlayingFrame() {
+    restoreFuzeBackground();
+    restoreBackground();
+
+    byte input = getInput();
+    updateActiveDirection(input);
+    updatePlayer(input);
+
+    if (!fz.active) {
+      if (fz.hasResumePos && p.framesSinceMove <= 5 && (p.allowedMoves & 0x30)) {
+        fz.begin();
+      } else if (p.isInDrawModeAndIdle(FUZE_IDLE_THRESHOLD)) {
+        fz.begin();
+      }
+    }
+    fz.update();
+
+    if (gameState != PLAYING) {
+      return;
+    }
+
+    saveBackground(p.position);
+    drawPlayer();
+    if (fz.active) {
+      saveFuzeBackground(fz.position);
+      fz.render();
+    }
+    drawDebug();
+  }
+
+  void tickFillAnimationFrame() {
+    restoreBackground();
+    scanlineFill(currentFillVerts, currentFillCount, fillDith);
+    drawPerimeter();
+    saveBackground(p.position);
+    drawPlayer();
+  }
+
+  void tickDeathAnimationFrame() {
+    drawDeathAnimation();
+  }
+
+  void tickGameOverFrame() {
+    // create game over sprite
+    // drawScore();
+  }
+
+  constexpr FrameHandler FRAME_HANDLERS[] = {
+    tickMenuFrame,
+    tickPlayingFrame,
+    tickFillAnimationFrame,
+    tickDeathAnimationFrame,
+    tickGameOverFrame
+  };
+}
 
 
 // test comment
@@ -50,6 +112,7 @@ void setup() {
     arduboy.boot();
     arduboy.setFrameRate(60);
     arduboy.clear();
+    respawn();
     drawPerimeter();
     updateCanMove();
     saveBackground(p.position);
@@ -61,50 +124,13 @@ void setup() {
 
 void loop() {
     if (!arduboy.nextFrame()) return;
-    frameCounter++;
+        frameCounter++;
     if (frameCounter >= 255) frameCounter = 0;
 
-    if (gameState == PLAYING) {
-      // Restore previous fuze render first, then player background.
-      restoreFuzeBackground();
-      restoreBackground();
-      byte input = getInput();
-      updateActiveDirection(input);
-      updatePlayer(input);
-
-      // Start fuze: either resume instantly if we have a saved resume position
-      // and the player just stopped (framesSinceMove == 1), or after the
-      // configured idle threshold.
-      if (!fz.active) {
-        if (fz.hasResumePos && p.framesSinceMove <= 5 && (p.allowedMoves & 0x30)) {
-          fz.begin();
-        } else if (p.isInDrawModeAndIdle(FUZE_IDLE_THRESHOLD)) {
-          fz.begin();
-        }
-      }
-      // Always update fuze state (it will deactivate when appropriate)
-      fz.update();
-
-      if (gameState == PLAYING) {
-        saveBackground(p.position);
-        drawPlayer();
-        if (fz.active) saveFuzeBackground(fz.position);
-        // Now draw the fuze on top
-        fz.render();
-        drawDebug();
-      }
-    } else if(gameState == FILL_ANIMATION) {
-      restoreBackground();
-      scanlineFill(currentFillVerts, currentFillCount, fillDith);
-      drawPerimeter();
-      saveBackground(p.position);
-      drawPlayer();
-    } else if (gameState == DEATH_ANIMATION) {
-      drawDeathAnimation();
+    const FrameHandler handler = FRAME_HANDLERS[gameState];
+    if (handler != nullptr) {
+        handler();
     }
-
-    // Advance player's idle/movement frame counter every loop iteration
     p.tickFrame();
-
     arduboy.display();
 }

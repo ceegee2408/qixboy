@@ -104,9 +104,9 @@ void drawPerimeter() {
     vertex v1 = perim.vertices[i];
     vertex v2 = perim.vertices[(i + 1) % perim.vertexCount];
     if (v1.gety() == v2.gety()) {
-      arduboy.drawFastHLine(min(v1.getx(), v2.getx()), v1.gety(), abs(v2.getx() - v1.getx()));
+      arduboy.drawFastHLine(min(v1.getx(), v2.getx()), v1.gety(), abs(v2.getx() - v1.getx()) + 1);
     } else if (v1.getx() == v2.getx()) {
-      arduboy.drawFastVLine(v1.getx(), min(v1.gety(), v2.gety()), abs(v2.gety() - v1.gety()));
+      arduboy.drawFastVLine(v1.getx(), min(v1.gety(), v2.gety()), abs(v2.gety() - v1.gety()) + 1);
     }
   }
 }
@@ -120,7 +120,8 @@ void drawPlayer() {
             if (bits & (0x80 >> col)) {
                 int px = sx + col, py = sy + row;
                 if (px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
-                    arduboy.drawPixel(px, py, WHITE);
+          bool cur = arduboy.getPixel(px, py);
+          arduboy.drawPixel(px, py, cur ? BLACK : WHITE);
                 }
             }
         }
@@ -146,7 +147,6 @@ void drawTrail() {
 
 void drawDebug() {
 #if DEBUG
-  // Clear a small area in the top-left corner
   arduboy.fillRect(WIDTH / 2, HEIGHT / 2, 40, 8, BLACK);
   arduboy.setCursor(WIDTH / 2, HEIGHT / 2);
   arduboy.setTextSize(1);
@@ -233,14 +233,17 @@ void drawAnimatedHLine(int x, int y, int w, bool fast) {
   //exceptions
   if (y == 0) return;
   if (fast) {
-    //clear line to reduce ghosting
-    arduboy.drawFastHLine(x, y, w, BLACK);
+    // Draw dithered pattern, but do not overwrite existing white pixels
     for (int i = 0; i < w; i++) {
-      if (((x + i + y) & 1) == 0) arduboy.drawPixel(x + i, y, WHITE);
+      if (((x + i + y) & 1) == 0) {
+        int px = x + i;
+        if (!arduboy.getPixel(px, y)) arduboy.drawPixel(px, y, WHITE);
+      }
     }
   } else {
     for (int i = 0; i < w; i++) {
-      arduboy.drawPixel(x + i, y, WHITE);
+      int px = x + i;
+      if (!arduboy.getPixel(px, y)) arduboy.drawPixel(px, y, WHITE);
     }
   }
 }

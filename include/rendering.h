@@ -31,6 +31,7 @@ void drawPlayer();
 void drawQix();
 void drawTrail();
 void drawDebug();
+void respawn();
 extern vertex deathAnimCenter;
 void initializeDeathAnimation();
 void drawDeathAnimation();

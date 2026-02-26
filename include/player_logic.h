@@ -19,8 +19,8 @@ byte getInput();
 void updateActiveDirection(byte input);
 void updatePlayer(byte input);
 bool movePlayer(byte allowedMoves);
-void perimeterMove(byte input);
-void drawMove(byte input, bool speed);
+void perimeterMove();
+void drawMove(bool isFastMove);
 
 // State management functions
 void updatePerimIndex();
