@@ -21,7 +21,14 @@ jobs:
       - name: Build
         run: |
           pio run
+      
+          # Get last commit message (before this workflow commit)
+          LAST_COMMIT=$(git log -2 --pretty=%B | tail -n 1)
 
+          # Sanitize for filenames
+          SAFE_LAST_COMMIT="${LAST_COMMIT// /-}"
+          SAFE_LAST_COMMIT="${SAFE_LAST_COMMIT//\//-}"
+      
       - name: Export HEX
         run: |
           mkdir -p docs
@@ -31,6 +38,6 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add "docs/${SAFE_BRANCH}-(hex-archive).hex"
-          git commit -m "Auto-update ${SAFE_BRANCH}-(hex-archive).hex" || echo "No changes"
+          git add "docs/qixboy.hex"
+          git commit -m "${SAFE_LAST_COMMIT}-(hex-archive).hex" || echo "No changes"
           git push "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" HEAD:"${{ github.ref_name }}"
