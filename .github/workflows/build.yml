@@ -12,11 +12,16 @@ jobs:
       - uses: actions/checkout@v4
       - uses: arduino/setup-arduino-cli@v1
 
-      - name: Install Arduboy core
+      - name: Configure Arduboy board manager URL
+        run: |
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls \
+            https://raw.githubusercontent.com/MrBlinky/Arduboy-homemade-package/master/package_arduboy_homemade_index.json
+
+      - name: Update index and install Arduboy core
         run: |
           arduino-cli core update-index
-          arduino-cli core install arduboy:avr \
-            --additional-urls https://raw.githubusercontent.com/MrBlinky/Arduboy-homemade-package/master/package_arduboy_homemade_index.json 
+          arduino-cli core install arduboy:avr
 
       - name: Install Arduboy2 library
         run: |
