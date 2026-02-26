@@ -41,10 +41,11 @@ vertex currentFillVerts[MAX_VERTICES];
 int currentFillCount = 0;
 int fillAnimationFrame = 0;
 bool fillDith = false;
-// How many frames idle in draw mode before fuze begins
 const uint16_t FUZE_IDLE_THRESHOLD = 45;
 GAMESTATE gameState = PLAYING; // change to START_SCREEN once implimented
 
+
+// test comment
 void setup() {
     arduboy.boot();
     arduboy.setFrameRate(60);
