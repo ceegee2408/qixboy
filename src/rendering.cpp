@@ -317,8 +317,7 @@ void respawn() {
   q.dir1 = 0; q.dir2 = 2;
   q.bounce1 = 0; q.bounce2 = 0;
   q.layout1 = false; q.layout2 = true;
-  q.forcedChange = false;
-  q.rng = 0xACE1; q.framePhase = 0;
+  q.forcedChange1 = false; q.forcedChange2 = false;
   q.moveTick = 0;
   // Initialize qix history
   for (int i = 0; i < q.QIX_HISTORY; i++) { q.hist1[i] = q.p1; q.hist2[i] = q.p2; }

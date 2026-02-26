@@ -194,9 +194,10 @@ class qix {
     bool   layout1 = false; bool layout2 = true; // opposite layouts for visual variety
 
     // FORCED_CHANGE_FLAG ($79 analog): set by bounce handler or frameHelper's 1/64 roll.
-    // Cleared when a direction is successfully committed.
-    // When true the starting slot is always perturbed (+2) regardless of PRNG low bits.
-    bool forcedChange = false;
+    // Cleared when a direction is successfully committed. Per-endpoint independent flags.
+    // When true the starting slot is always perturbed (+1) regardless of PRNG low bits.
+    bool forcedChange1 = false;
+    bool forcedChange2 = false;
 
     // History for trailing effect
     static const int QIX_HISTORY = 4;
@@ -207,26 +208,6 @@ class qix {
     // Movement throttling
     int moveTick = 0;
     int moveInterval = 2;
-
-    // Shared 16-bit LFSR state (seeded once; period 65535).
-    // Advanced ONCE per frame in frameHelper() — both endpoints read the same
-    // post-advance value, producing the correlated motion of the original arcade board.
-    uint16_t rng = 0xACE1;
-    uint8_t  framePhase = 0; // IRQ-style mixing counter (~$E014)
-
-    // frameHelper — mirrors the per-frame helper at $E014 in the original ROM.
-    // Call exactly once per frame before moving either endpoint.
-    //   1. Advance LFSR.
-    //   2. Mix in a frame-phase byte so timing has subtle variation.
-    //   3. Occasionally (~1/64) assert forcedChange to break tied/trapped states.
-    inline void frameHelper() {
-      rng ^= rng << 7;
-      rng ^= rng >> 9;
-      rng ^= rng << 8;
-      framePhase++;
-      rng ^= ((uint16_t)framePhase << 8);
-      if ((rng & 0x003F) == 0) forcedChange = true;
-    }
 
     qix() {
       p1 = vertex(WIDTH / 3, HEIGHT / 3);
@@ -265,7 +246,7 @@ class qix {
 
     // Choose a direction and move one endpoint by one step.
     //
-    // Pre-perturbation (slot rotate +2) before either pass:
+    // Pre-perturbation (slot rotate +1 = 90°) before either pass:
     //   • Always when player is drawing (DIR_LOCK_FLAG analog — makes Qix aggressive).
     //   • Always when forcedChange is set.
     //   • Otherwise when low 2 bits of the already-advanced shared LFSR == 0 (~1/4).
@@ -273,14 +254,20 @@ class qix {
     // Pass 1 — SetB diagonals: first clear pixel wins.
     // Pass 2 — SetA cardinals: first clear pixel wins.
     // Fully blocked: increment bounce; at threshold swap layout + assert forcedChange.
-    bool moveEndpoint(vertex &pos, byte &dirSlot, int8_t &bounce, bool &layout) {
+    bool moveEndpoint(vertex &pos, byte &dirSlot, int8_t &bounce, bool &layout, bool &forcedChange) {
       int8_t dx, dy;
 
       // DIR_LOCK_FLAG: player actively drawing → force perturbation every frame.
       bool playerDrawing = (p.allowedMoves & 0x30) != 0;
       byte startSlot = dirSlot;
-      if (playerDrawing || forcedChange || (rng & 0x0003) == 0) {
-        startSlot = (startSlot + 2) & 3;
+      // Increase base perturbation rate to ~50% (random(2)==0).
+      // Apply an extra 90° nudge occasionally so rotations can be larger.
+      if (playerDrawing || forcedChange || random(2) == 0) {
+        startSlot = (startSlot + 1) & 3;  // primary 90° nudge
+        // If not forced or player-drawing, give a 50% chance to nudge again
+        if (!playerDrawing && !forcedChange && (random(2) == 0)) {
+          startSlot = (startSlot + 1) & 3; // extra 90° nudge
+        }
       }
 
       // Pass 1 — SetB (diagonal)
@@ -312,7 +299,7 @@ class qix {
       }
 
       // Fully blocked: update bounce counter; swap layout at threshold
-      if (++bounce >= 4) {
+      if (++bounce >= 8) {  // Higher threshold = less bounce than original (more patient)
         layout = !layout;
         dirSlot = (dirSlot + 1) & 3;
         bounce = 0;
@@ -326,17 +313,20 @@ class qix {
       if (moveTick < moveInterval) return;
       moveTick = 0;
 
-      // Advance shared LFSR once — both endpoints read same post-advance state
-      // (correlated, arcade-authentic). Mirrors $E014 pre-move helper.
-      frameHelper();
-
       // Save positions to history before moving
       hist1[histIdx] = p1;
       hist2[histIdx] = p2;
       histIdx = (histIdx + 1) % QIX_HISTORY;
 
-      moveEndpoint(p1, dir1, bounce1, layout1);
-      moveEndpoint(p2, dir2, bounce2, layout2);
+        // Occasionally set forced change (more often for livelier motion)
+        // Increase probability from ~1/64 to ~1/16 to produce more re-orientation.
+        if (random(16) == 0) {
+          forcedChange1 = true;
+          forcedChange2 = true;
+        }
+
+      moveEndpoint(p1, dir1, bounce1, layout1, forcedChange1);
+      moveEndpoint(p2, dir2, bounce2, layout2, forcedChange2);
     }
 
     vertex center() const {
@@ -363,11 +353,19 @@ class fuze {
     byte frame = 0; // tick counter for animation
     byte moveTick = 0; // tick counter for movement gating
     fuze() {
-      position = vertex(WIDTH / 2, HEIGHT / 2);
+      active = false;
+      position = vertex(0,0);
+      trailIndex = 0;
+      speed = FUZE_MOVE_INTERVAL;
+      frame = 0;
+      moveTick = 0;
+      hasResumePos = false;
+      resumeTrailIndex = 0;
     }
     void begin() {
       active = true;
       frame = 0;
+      moveTick = 0;
       if (hasResumePos) {
         position = resumePos;
         trailIndex = resumeTrailIndex;

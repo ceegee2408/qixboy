@@ -68,10 +68,18 @@ namespace {
     }
     fz.update();
 
-    // Erase Qix history lines before checking pixels, then update Qix
+    // Erase Qix history before pixel checks, then update Qix movement
     eraseQixHistory();
-    // Update Qix movement each frame
     q.update();
+
+    // Check Qix-trail collision: if player is drawing and Qix endpoint touches trail, kill player
+    if (p.allowedMoves & 0x30) {  // player is in draw mode
+      // Trail pixels are white on framebuffer; check if either Qix endpoint is on trail
+      if (arduboy.getPixel(q.p1.getx(), q.p1.gety()) ||
+          arduboy.getPixel(q.p2.getx(), q.p2.gety())) {
+        p.loseLife();
+      }
+    }
 
     if (gameState != PLAYING) {
       return;
