@@ -1,5 +1,4 @@
 #include "geometry.h"
-#include "entities.h"
 
 int crossProduct(vertex a, vertex b, vertex c) {
   // Calculate the z component of the cross product of vectors AB and AC

@@ -11,22 +11,6 @@ static uint32_t bgBuffer  = 0;
 static vertex   bgSavedPos;
 static bool     bgSaved   = false;
 
-// Separate background buffer for fuze sprite to avoid smearing
-static uint32_t fzBgBuffer = 0;
-static vertex   fzBgSavedPos;
-static bool     fzBgSaved = false;
-// Death animation center (set when the player dies)
-vertex deathAnimCenter;
-
-static int deathAnimRadius = 0;
-static int deathAnimTick = 0;
-static int deathAnimPhase = 0;
-static int radiusStep = 0;
-
-#define DEATH_RADIUS_MAX    300
-#define DEATH_TICK_INTERVAL  1
-#define DEATH_PULSE_COUNT    2
-
 void saveBackground(vertex pos) {
   bgSavedPos = pos;
   bgSaved    = true;
@@ -59,40 +43,6 @@ void restoreBackground() {
       }
   }
   bgSaved = false;
-}
-
-void saveFuzeBackground(vertex pos) {
-  fzBgSavedPos = pos;
-  fzBgSaved = true;
-  fzBgBuffer = 0;
-  int sx = pos.getx() - PLAYER_SIZE;
-  int sy = pos.gety() - PLAYER_SIZE;
-  for (int row = 0; row < SPRITE_SIZE; row++) {
-    for (int col = 0; col < SPRITE_SIZE; col++) {
-      int px = sx + col, py = sy + row;
-      if (px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
-        if (arduboy.getPixel(px, py)) {
-          fzBgBuffer |= (1UL << (row * SPRITE_SIZE + col));
-        }
-      }
-    }
-  }
-}
-
-void restoreFuzeBackground() {
-  if (!fzBgSaved) return;
-  int sx = fzBgSavedPos.getx() - PLAYER_SIZE;
-  int sy = fzBgSavedPos.gety() - PLAYER_SIZE;
-  for (int row = 0; row < SPRITE_SIZE; row++) {
-    for (int col = 0; col < SPRITE_SIZE; col++) {
-      int px = sx + col, py = sy + row;
-      if (px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
-        bool lit = (fzBgBuffer >> (row * SPRITE_SIZE + col)) & 1;
-        arduboy.drawPixel(px, py, lit ? WHITE : BLACK);
-      }
-    }
-  }
-  fzBgSaved = false;
 }
 
 void drawLine(vertex v1, vertex v2) {
@@ -242,132 +192,5 @@ void drawAnimatedHLine(int x, int y, int w, bool fast) {
     for (int i = 0; i < w; i++) {
       arduboy.drawPixel(x + i, y, WHITE);
     }
-  }
-}
-
-void drawSpriteFrame_P(const uint8_t *frames, int frameIdx, int frameW, int frameH, int x, int y) {
-  if (frameW <= 0 || frameH <= 0) return;
-  // frames is stored as contiguous [frame][row]
-  const uint8_t *base = frames + frameIdx * frameH;
-  for (int r = 0; r < frameH; r++) {
-    uint8_t bits = pgm_read_byte(base + r);
-    for (int c = 0; c < frameW; c++) {
-      bool lit = false;
-      if (frameW <= 5) {
-        lit = bits & (0x80 >> c); // 5-wide sprites use MSB-left
-      } else if (frameW == 7) {
-        lit = bits & (0x40 >> c); // 7-wide sprites stored in low 7 bits (MSB at 0x40)
-      } else {
-        lit = bits & (0x80 >> c);
-      }
-      if (lit) {
-        int px = x + c;
-        int py = y + r;
-        if (px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT)
-          arduboy.drawPixel(px, py, WHITE);
-      }
-    }
-  }
-}
-
-// Implement fuze rendering here to keep drawing code centralized and avoid
-// flicker. Uses the PROGMEM frames in `fuzeSpriteFrames`.
-void fuze::render() {
-  if (!active) return;
-  int fx = position.getx() - PLAYER_SIZE;
-  int fy = position.gety() - PLAYER_SIZE;
-  // fuze.frame may run 0..7; frameset is 4 frames, so modulo 4
-  int fidx = (frame / FUZE_FRAME_TICKS) % FUZE_FRAME_COUNT;
-  drawSpriteFrame_P((const uint8_t*)fuzeSpriteFrames, fidx, SPRITE_SIZE, SPRITE_SIZE, fx, fy);
-}
-
-void initializeDeathAnimation() {
-  gameState = DEATH_ANIMATION;
-  deathAnimCenter = p.position;
-  deathAnimRadius = 1;
-  deathAnimTick   = 0;
-  deathAnimPhase  = 0;
-  radiusStep = 10;
-  restoreBackground();
-}
-
-void respawn() {
-  p.respawn();
-  perim.reset();
-  q.position = vertex(WIDTH / 2, HEIGHT / 2);
-  fz.active = false;
-  fillAnimationFrame = 0;
-  bgSaved = false;
-  fzBgSaved = false;
-  gameState = PLAYING;
-}
-
-int xreset = 0;
-int yreset = 0;
-
-void drawDeathAnimation() {
-  if(deathAnimPhase < 2) {
-    int cx = deathAnimCenter.getx();
-    int cy = deathAnimCenter.gety();
-
-    // Offsets from current radius — gaps shrink at larger distances
-    // e.g. at r=14: draws at 14, 11, 7, 2 (gaps 3, 4, 5)
-    // increase DEATH_RADIUS_MAX if you want more rings visible
-    int offsets[] = { 0, 3, 7, 11, 15, 17, 19 };
-
-    for (int o = 0; o < 4; o++) {
-      int r = deathAnimRadius - offsets[o];
-      if (r < 1) continue;
-      for (int i = 0; i <= r; i++) {
-        int coords[4][2] = {
-          { cx + i, cy - (r - i) },
-          { cx + i, cy + (r - i) },
-          { cx - i, cy + (r - i) },
-          { cx - i, cy - (r - i) }
-        };
-        for (int c = 0; c < 4; c++) {
-          int x = coords[c][0], y = coords[c][1];
-          if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT) {
-            if (deathAnimPhase == 1) {
-              arduboy.drawPixel(x, y, BLACK);
-            } else {
-              bool co = (arduboy.getPixel(x, y) ? BLACK : WHITE);
-              arduboy.drawPixel(x, y, co);
-            }
-          }
-        }
-      }
-    }
-    deathAnimTick++;
-    if (deathAnimTick < DEATH_TICK_INTERVAL) return;
-    deathAnimTick = 0;
-    deathAnimRadius += radiusStep;
-
-    if (deathAnimRadius > DEATH_RADIUS_MAX) {
-    deathAnimRadius = 1;
-    deathAnimPhase++;
-    }
-  } else {
-    arduboy.drawFastHLine(0, 0, WIDTH, WHITE);
-    arduboy.display();
-    for (int y = 1; y < HEIGHT-1; y+=2) {
-      arduboy.drawPixel(0, y, WHITE);
-      arduboy.drawFastHLine(1, y, WIDTH-2, BLACK);
-      arduboy.drawPixel(WIDTH-1, y, WHITE);
-      arduboy.display();
-    }
-    for (int y = 2; y < HEIGHT-1; y+=2) {
-      arduboy.drawPixel(0, y, WHITE);
-      arduboy.drawFastHLine(1, y, WIDTH-2, BLACK);
-      arduboy.drawPixel(WIDTH-1, y, WHITE);
-      arduboy.display();
-    }
-    arduboy.drawFastHLine(0, HEIGHT-1, WIDTH, WHITE);
-    arduboy.display();
-    delay(1000);
-    respawn();
-    drawPerimeter();          // redraw the perimeter on the clean screen
-    //gameState = GAME_OVER;
-    //while(true){}
   }
 }

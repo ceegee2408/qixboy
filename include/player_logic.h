@@ -18,7 +18,7 @@ extern uint16_t frameCounter;
 byte getInput();
 void updateActiveDirection(byte input);
 void updatePlayer(byte input);
-bool movePlayer(byte allowedMoves);
+void movePlayer(byte allowedMoves);
 void perimeterMove(byte input);
 void drawMove(byte input, bool speed);
 
