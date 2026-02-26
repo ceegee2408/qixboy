@@ -106,8 +106,6 @@ namespace {
   };
 }
 
-
-// test comment
 void setup() {
     arduboy.boot();
     arduboy.setFrameRate(60);
