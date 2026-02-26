@@ -183,109 +183,160 @@ class perimeter {
 
 class qix {
   public:
-    // Current endpoints
     vertex p1, p2;
-    // Velocities for each endpoint
-    int v1x, v1y;
-    int v2x, v2y;
+
+    // Per-endpoint direction state (authentic Qix direction-selection algorithm)
+    // dirSlot: 0-3 (indexes into SetA/SetB, rotated in steps of 1, wrapping at 3→0)
+    // layout:  false = "negative" (UP-first), true = "positive" (DOWN-first, mirrored)
+    // bounce:  increments each frame both endpoints are fully trapped; triggers layout swap
+    byte   dir1 = 0;    byte   dir2 = 2;   // start in different slots for asymmetry
+    int8_t bounce1 = 0; int8_t bounce2 = 0;
+    bool   layout1 = false; bool layout2 = true; // opposite layouts for visual variety
+
+    // FORCED_CHANGE_FLAG ($79 analog): set by bounce handler or frameHelper's 1/64 roll.
+    // Cleared when a direction is successfully committed.
+    // When true the starting slot is always perturbed (+2) regardless of PRNG low bits.
+    bool forcedChange = false;
 
     // History for trailing effect
     static const int QIX_HISTORY = 4;
     vertex hist1[QIX_HISTORY];
     vertex hist2[QIX_HISTORY];
     int histIdx = 0;
+
     // Movement throttling
     int moveTick = 0;
     int moveInterval = 2;
 
+    // Shared 16-bit LFSR state (seeded once; period 65535).
+    // Advanced ONCE per frame in frameHelper() — both endpoints read the same
+    // post-advance value, producing the correlated motion of the original arcade board.
+    uint16_t rng = 0xACE1;
+    uint8_t  framePhase = 0; // IRQ-style mixing counter (~$E014)
+
+    // frameHelper — mirrors the per-frame helper at $E014 in the original ROM.
+    // Call exactly once per frame before moving either endpoint.
+    //   1. Advance LFSR.
+    //   2. Mix in a frame-phase byte so timing has subtle variation.
+    //   3. Occasionally (~1/64) assert forcedChange to break tied/trapped states.
+    inline void frameHelper() {
+      rng ^= rng << 7;
+      rng ^= rng >> 9;
+      rng ^= rng << 8;
+      framePhase++;
+      rng ^= ((uint16_t)framePhase << 8);
+      if ((rng & 0x003F) == 0) forcedChange = true;
+    }
+
     qix() {
       p1 = vertex(WIDTH / 3, HEIGHT / 3);
       p2 = vertex((WIDTH * 2) / 3, (HEIGHT * 2) / 3);
-      // Deliberately asymmetric so the pattern is never periodic/boring
-      v1x = 2; v1y = 1;
-      v2x = -1; v2y = 2;
-      // Initialize history
-      for (int i = 0; i < QIX_HISTORY; i++) {
-        hist1[i] = p1;
-        hist2[i] = p2;
-      }
+      for (int i = 0; i < QIX_HISTORY; i++) { hist1[i] = p1; hist2[i] = p2; }
       histIdx = 0;
     }
 
+    // Return direction vector for slot (0-3), set 0=SetA cardinal / 1=SetB diagonal,
+    // and the current layout flag.
+    // Layout 0 (negative, UP-first):
+    //   SetA: [UP(0,-1), RIGHT(1,0), DOWN(0,1), LEFT(-1,0)]
+    //   SetB: [UL(-1,-1), UR(1,-1), DR(1,1), DL(-1,1)]
+    // Layout 1 (positive, DOWN-first, mirrored):
+    //   SetA: [DOWN(0,1), LEFT(-1,0), UP(0,-1), RIGHT(1,0)]
+    //   SetB: [DR(1,1), DL(-1,1), UL(-1,-1), UR(1,-1)]
+    static inline void getDir(byte slot, byte setIdx, bool layout,
+                               int8_t &dx, int8_t &dy) {
+      static const int8_t A0x[4] = { 0,  1, 0, -1};
+      static const int8_t A0y[4] = {-1,  0, 1,  0};
+      static const int8_t A1x[4] = { 0, -1, 0,  1};
+      static const int8_t A1y[4] = { 1,  0,-1,  0};
+      static const int8_t B0x[4] = {-1,  1, 1, -1};
+      static const int8_t B0y[4] = {-1, -1, 1,  1};
+      static const int8_t B1x[4] = { 1, -1,-1,  1};
+      static const int8_t B1y[4] = { 1,  1,-1, -1};
+      byte s = slot & 3;
+      if (setIdx == 0) {
+        dx = layout ? A1x[s] : A0x[s];
+        dy = layout ? A1y[s] : A0y[s];
+      } else {
+        dx = layout ? B1x[s] : B0x[s];
+        dy = layout ? B1y[s] : B0y[s];
+      }
+    }
+
+    // Choose a direction and move one endpoint by one step.
+    //
+    // Pre-perturbation (slot rotate +2) before either pass:
+    //   • Always when player is drawing (DIR_LOCK_FLAG analog — makes Qix aggressive).
+    //   • Always when forcedChange is set.
+    //   • Otherwise when low 2 bits of the already-advanced shared LFSR == 0 (~1/4).
+    //
+    // Pass 1 — SetB diagonals: first clear pixel wins.
+    // Pass 2 — SetA cardinals: first clear pixel wins.
+    // Fully blocked: increment bounce; at threshold swap layout + assert forcedChange.
+    bool moveEndpoint(vertex &pos, byte &dirSlot, int8_t &bounce, bool &layout) {
+      int8_t dx, dy;
+
+      // DIR_LOCK_FLAG: player actively drawing → force perturbation every frame.
+      bool playerDrawing = (p.allowedMoves & 0x30) != 0;
+      byte startSlot = dirSlot;
+      if (playerDrawing || forcedChange || (rng & 0x0003) == 0) {
+        startSlot = (startSlot + 2) & 3;
+      }
+
+      // Pass 1 — SetB (diagonal)
+      for (int i = 0; i < 4; i++) {
+        byte slot = (startSlot + i) & 3;
+        getDir(slot, 1, layout, dx, dy);
+        int nx = pos.getx() + dx, ny = pos.gety() + dy;
+        if (nx <= 1 || nx >= WIDTH-2 || ny <= 1 || ny >= HEIGHT-2) continue;
+        if (!arduboy.getPixel(nx, ny)) {
+          dirSlot = slot; bounce = 0; forcedChange = false;
+          pos = vertex(nx, ny);
+          return true;
+        }
+      }
+
+      // Pass 2 — SetA (cardinal)
+      // Original additionally skips pixels with PLAYER_TRAIL_MASK set; on 1-bit
+      // Arduboy all white pixels are treated as blocked.
+      for (int i = 0; i < 4; i++) {
+        byte slot = (startSlot + i) & 3;
+        getDir(slot, 0, layout, dx, dy);
+        int nx = pos.getx() + dx, ny = pos.gety() + dy;
+        if (nx <= 1 || nx >= WIDTH-2 || ny <= 1 || ny >= HEIGHT-2) continue;
+        if (!arduboy.getPixel(nx, ny)) {
+          dirSlot = slot; bounce = 0; forcedChange = false;
+          pos = vertex(nx, ny);
+          return true;
+        }
+      }
+
+      // Fully blocked: update bounce counter; swap layout at threshold
+      if (++bounce >= 4) {
+        layout = !layout;
+        dirSlot = (dirSlot + 1) & 3;
+        bounce = 0;
+        forcedChange = true; // FORCED_CHANGE_FLAG — nudge direction on next frame
+      }
+      return false;
+    }
+
     void update() {
-      // Slow movement by only updating positions every `moveInterval` frames
       moveTick++;
       if (moveTick < moveInterval) return;
       moveTick = 0;
-      const int maxSpeed = 3;
-      const int maxDist = 30; // soft maximum Manhattan distance between endpoints
 
-      // Store history (old positions)
+      // Advance shared LFSR once — both endpoints read same post-advance state
+      // (correlated, arcade-authentic). Mirrors $E014 pre-move helper.
+      frameHelper();
+
+      // Save positions to history before moving
       hist1[histIdx] = p1;
       hist2[histIdx] = p2;
       histIdx = (histIdx + 1) % QIX_HISTORY;
 
-      // Randomly nudge velocities within a max speed
-      v1x = constrain(v1x + (int)random(-1, 2), -maxSpeed, maxSpeed);
-      v1y = constrain(v1y + (int)random(-1, 2), -maxSpeed, maxSpeed);
-      v2x = constrain(v2x + (int)random(-1, 2), -maxSpeed, maxSpeed);
-      v2y = constrain(v2y + (int)random(-1, 2), -maxSpeed, maxSpeed);
-
-      // Avoid zero velocity on both axes (Qix gets stuck)
-      if (v1x == 0 && v1y == 0) v1x = 1;
-      if (v2x == 0 && v2y == 0) v2y = 1;
-
-      // Soft pull to keep endpoints from drifting too far apart
-      int dx = p2.getx() - p1.getx();
-      int dy = p2.gety() - p1.gety();
-      int dist = abs(dx) + abs(dy);
-      if (dist > maxDist) {
-        if (dx > 0) { v1x++; v2x--; } else { v1x--; v2x++; }
-        if (dy > 0) { v1y++; v2y--; } else { v1y--; v2y++; }
-        v1x = constrain(v1x, -maxSpeed, maxSpeed);
-        v1y = constrain(v1y, -maxSpeed, maxSpeed);
-        v2x = constrain(v2x, -maxSpeed, maxSpeed);
-        v2y = constrain(v2y, -maxSpeed, maxSpeed);
-      }
-
-      // Compute tentative next positions
-      int nx1 = p1.getx() + v1x;
-      int ny1 = p1.gety() + v1y;
-      int nx2 = p2.getx() + v2x;
-      int ny2 = p2.gety() + v2y;
-
-      // If an endpoint would move onto a white pixel, invert its velocity
-      if (nx1 >= 0 && nx1 < WIDTH && ny1 >= 0 && ny1 < HEIGHT) {
-        if (arduboy.getPixel(nx1, ny1)) {
-          v1x = -v1x;
-          v1y = -v1y;
-          nx1 = p1.getx() + v1x;
-          ny1 = p1.gety() + v1y;
-        }
-      }
-      if (nx2 >= 0 && nx2 < WIDTH && ny2 >= 0 && ny2 < HEIGHT) {
-        if (arduboy.getPixel(nx2, ny2)) {
-          v2x = -v2x;
-          v2y = -v2y;
-          nx2 = p2.getx() + v2x;
-          ny2 = p2.gety() + v2y;
-        }
-      }
-
-      // Bounce on playfield bounds (simple AABB)
-      if (nx1 <= 1 || nx1 >= WIDTH - 2) v1x = -v1x;
-      if (ny1 <= 1 || ny1 >= HEIGHT - 2) v1y = -v1y;
-      if (nx2 <= 1 || nx2 >= WIDTH - 2) v2x = -v2x;
-      if (ny2 <= 1 || ny2 >= HEIGHT - 2) v2y = -v2y;
-
-      // Apply (clamped) moves after any bounce adjustments
-      nx1 = constrain(p1.getx() + v1x, 1, WIDTH - 2);
-      ny1 = constrain(p1.gety() + v1y, 1, HEIGHT - 2);
-      nx2 = constrain(p2.getx() + v2x, 1, WIDTH - 2);
-      ny2 = constrain(p2.gety() + v2y, 1, HEIGHT - 2);
-
-      p1 = vertex(nx1, ny1);
-      p2 = vertex(nx2, ny2);
+      moveEndpoint(p1, dir1, bounce1, layout1);
+      moveEndpoint(p2, dir2, bounce2, layout2);
     }
 
     vertex center() const {

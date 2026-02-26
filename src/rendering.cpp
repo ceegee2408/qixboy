@@ -314,8 +314,12 @@ void respawn() {
   perim.reset();
   q.p1 = vertex(WIDTH / 3, HEIGHT / 3);
   q.p2 = vertex((WIDTH * 2) / 3, (HEIGHT * 2) / 3);
-  q.v1x = 2; q.v1y = 1;
-  q.v2x = -1; q.v2y = 2;
+  q.dir1 = 0; q.dir2 = 2;
+  q.bounce1 = 0; q.bounce2 = 0;
+  q.layout1 = false; q.layout2 = true;
+  q.forcedChange = false;
+  q.rng = 0xACE1; q.framePhase = 0;
+  q.moveTick = 0;
   // Initialize qix history
   for (int i = 0; i < q.QIX_HISTORY; i++) { q.hist1[i] = q.p1; q.hist2[i] = q.p2; }
   q.histIdx = 0;
