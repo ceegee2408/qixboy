@@ -129,9 +129,24 @@ void drawPlayer() {
 }
 
 void drawQix() {
-  // Draw an X shape for the qix
-  arduboy.drawLine(q.position.getx() - 2, q.position.gety() - 2, q.position.getx() + 2, q.position.gety() + 2);
-  arduboy.drawLine(q.position.getx() + 2, q.position.gety() - 2, q.position.getx() - 2, q.position.gety() + 2);
+  // Draw history lines (stippled) and the current solid line.
+  for (int i = 1; i <= q.QIX_HISTORY; i++) {
+    int idx = (q.histIdx - i + q.QIX_HISTORY) % q.QIX_HISTORY;
+    if ((i % 2) == 0) continue; // skip every other for stipple
+    arduboy.drawLine(q.hist1[idx].getx(), q.hist1[idx].gety(),
+                     q.hist2[idx].getx(), q.hist2[idx].gety(), WHITE);
+  }
+  // Draw current line solid
+  arduboy.drawLine(q.p1.getx(), q.p1.gety(), q.p2.getx(), q.p2.gety(), WHITE);
+}
+
+void eraseQixHistory() {
+  // Draw all stored history lines black to remove them from framebuffer
+  for (int i = 0; i < q.QIX_HISTORY; i++) {
+    int idx = (q.histIdx + i) % q.QIX_HISTORY; // older -> newer
+    arduboy.drawLine(q.hist1[idx].getx(), q.hist1[idx].gety(),
+                     q.hist2[idx].getx(), q.hist2[idx].gety(), BLACK);
+  }
 }
 
 void drawTrail() {
@@ -297,7 +312,13 @@ void initializeDeathAnimation() {
 void respawn() {
   p.respawn();
   perim.reset();
-  q.position = vertex(WIDTH / 2, HEIGHT / 2);
+  q.p1 = vertex(WIDTH / 3, HEIGHT / 3);
+  q.p2 = vertex((WIDTH * 2) / 3, (HEIGHT * 2) / 3);
+  q.v1x = 2; q.v1y = 1;
+  q.v2x = -1; q.v2y = 2;
+  // Initialize qix history
+  for (int i = 0; i < q.QIX_HISTORY; i++) { q.hist1[i] = q.p1; q.hist2[i] = q.p2; }
+  q.histIdx = 0;
   fz.active = false;
   fillAnimationFrame = 0;
   bgSaved = false;

@@ -29,6 +29,7 @@ void drawDotLine(vertex v1, vertex v2);
 void drawPerimeter();
 void drawPlayer();
 void drawQix();
+void eraseQixHistory();
 void drawTrail();
 void drawDebug();
 void respawn();

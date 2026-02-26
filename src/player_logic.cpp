@@ -506,7 +506,8 @@ void updatePerim() {
     scratch[writeIdx++] = perim.vertices[startIdx];
   }
 
-  bool qixInTestPoly = isInsidePolygon(q.position, scratch, writeIdx);
+  // Use the qix center (midpoint of line) as representative point for inside tests
+  bool qixInTestPoly = isInsidePolygon(q.center(), scratch, writeIdx);
 
   if (qixInTestPoly) {
     // New perimeter = scratch (trail + backward arc) — already built.
@@ -576,5 +577,5 @@ void updatePerim() {
 }
 
 bool isQixInsidePerimeter() {
-  return isInsidePolygon(q.position, perim.vertices, perim.vertexCount);
+  return isInsidePolygon(q.center(), perim.vertices, perim.vertexCount);
 }

@@ -9,6 +9,9 @@
 // Sprite frame counts
 #include "sprites.h"
 
+// Access Arduboy framebuffer for collision check
+extern Arduboy2 arduboy;
+
 class player {
   private:
     // Packed data to save RAM
@@ -180,11 +183,113 @@ class perimeter {
 
 class qix {
   public:
-    vertex position;
-    int speed = 1;
-    
+    // Current endpoints
+    vertex p1, p2;
+    // Velocities for each endpoint
+    int v1x, v1y;
+    int v2x, v2y;
+
+    // History for trailing effect
+    static const int QIX_HISTORY = 4;
+    vertex hist1[QIX_HISTORY];
+    vertex hist2[QIX_HISTORY];
+    int histIdx = 0;
+    // Movement throttling
+    int moveTick = 0;
+    int moveInterval = 2;
+
     qix() {
-      position = vertex(WIDTH / 2, HEIGHT / 2);
+      p1 = vertex(WIDTH / 3, HEIGHT / 3);
+      p2 = vertex((WIDTH * 2) / 3, (HEIGHT * 2) / 3);
+      // Deliberately asymmetric so the pattern is never periodic/boring
+      v1x = 2; v1y = 1;
+      v2x = -1; v2y = 2;
+      // Initialize history
+      for (int i = 0; i < QIX_HISTORY; i++) {
+        hist1[i] = p1;
+        hist2[i] = p2;
+      }
+      histIdx = 0;
+    }
+
+    void update() {
+      // Slow movement by only updating positions every `moveInterval` frames
+      moveTick++;
+      if (moveTick < moveInterval) return;
+      moveTick = 0;
+      const int maxSpeed = 3;
+      const int maxDist = 30; // soft maximum Manhattan distance between endpoints
+
+      // Store history (old positions)
+      hist1[histIdx] = p1;
+      hist2[histIdx] = p2;
+      histIdx = (histIdx + 1) % QIX_HISTORY;
+
+      // Randomly nudge velocities within a max speed
+      v1x = constrain(v1x + (int)random(-1, 2), -maxSpeed, maxSpeed);
+      v1y = constrain(v1y + (int)random(-1, 2), -maxSpeed, maxSpeed);
+      v2x = constrain(v2x + (int)random(-1, 2), -maxSpeed, maxSpeed);
+      v2y = constrain(v2y + (int)random(-1, 2), -maxSpeed, maxSpeed);
+
+      // Avoid zero velocity on both axes (Qix gets stuck)
+      if (v1x == 0 && v1y == 0) v1x = 1;
+      if (v2x == 0 && v2y == 0) v2y = 1;
+
+      // Soft pull to keep endpoints from drifting too far apart
+      int dx = p2.getx() - p1.getx();
+      int dy = p2.gety() - p1.gety();
+      int dist = abs(dx) + abs(dy);
+      if (dist > maxDist) {
+        if (dx > 0) { v1x++; v2x--; } else { v1x--; v2x++; }
+        if (dy > 0) { v1y++; v2y--; } else { v1y--; v2y++; }
+        v1x = constrain(v1x, -maxSpeed, maxSpeed);
+        v1y = constrain(v1y, -maxSpeed, maxSpeed);
+        v2x = constrain(v2x, -maxSpeed, maxSpeed);
+        v2y = constrain(v2y, -maxSpeed, maxSpeed);
+      }
+
+      // Compute tentative next positions
+      int nx1 = p1.getx() + v1x;
+      int ny1 = p1.gety() + v1y;
+      int nx2 = p2.getx() + v2x;
+      int ny2 = p2.gety() + v2y;
+
+      // If an endpoint would move onto a white pixel, invert its velocity
+      if (nx1 >= 0 && nx1 < WIDTH && ny1 >= 0 && ny1 < HEIGHT) {
+        if (arduboy.getPixel(nx1, ny1)) {
+          v1x = -v1x;
+          v1y = -v1y;
+          nx1 = p1.getx() + v1x;
+          ny1 = p1.gety() + v1y;
+        }
+      }
+      if (nx2 >= 0 && nx2 < WIDTH && ny2 >= 0 && ny2 < HEIGHT) {
+        if (arduboy.getPixel(nx2, ny2)) {
+          v2x = -v2x;
+          v2y = -v2y;
+          nx2 = p2.getx() + v2x;
+          ny2 = p2.gety() + v2y;
+        }
+      }
+
+      // Bounce on playfield bounds (simple AABB)
+      if (nx1 <= 1 || nx1 >= WIDTH - 2) v1x = -v1x;
+      if (ny1 <= 1 || ny1 >= HEIGHT - 2) v1y = -v1y;
+      if (nx2 <= 1 || nx2 >= WIDTH - 2) v2x = -v2x;
+      if (ny2 <= 1 || ny2 >= HEIGHT - 2) v2y = -v2y;
+
+      // Apply (clamped) moves after any bounce adjustments
+      nx1 = constrain(p1.getx() + v1x, 1, WIDTH - 2);
+      ny1 = constrain(p1.gety() + v1y, 1, HEIGHT - 2);
+      nx2 = constrain(p2.getx() + v2x, 1, WIDTH - 2);
+      ny2 = constrain(p2.gety() + v2y, 1, HEIGHT - 2);
+
+      p1 = vertex(nx1, ny1);
+      p2 = vertex(nx2, ny2);
+    }
+
+    vertex center() const {
+      return vertex((p1.getx() + p2.getx()) / 2, (p1.gety() + p2.gety()) / 2);
     }
 };
 

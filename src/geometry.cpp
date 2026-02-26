@@ -2,8 +2,6 @@
 #include "entities.h"
 
 int crossProduct(vertex a, vertex b, vertex c) {
-  // Calculate the z component of the cross product of vectors AB and AC
-  // Returns: positive if c is left of line ab, negative if right, 0 if collinear
   int ax = b.getx() - a.getx();
   int ay = b.gety() - a.gety();
   int bx = c.getx() - a.getx();

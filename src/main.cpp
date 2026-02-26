@@ -68,12 +68,19 @@ namespace {
     }
     fz.update();
 
+    // Erase Qix history lines before checking pixels, then update Qix
+    eraseQixHistory();
+    // Update Qix movement each frame
+    q.update();
+
     if (gameState != PLAYING) {
       return;
     }
 
     saveBackground(p.position);
     drawPlayer();
+    // Draw Qix (history + current line)
+    drawQix();
     if (fz.active) {
       saveFuzeBackground(fz.position);
       fz.render();

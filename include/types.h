@@ -19,13 +19,14 @@ class vertex {
       this->position = 0;
     }
     
-    int getx() {
+    int getx() const {
       return position / 64;
     }
-    
-    int gety() {
+
+    int gety() const {
       return position % 64;
     }
+    
     
     void addx(int x) {
       // Check if x movement would go out of bounds before applying
