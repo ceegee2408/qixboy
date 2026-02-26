@@ -27,11 +27,15 @@ byte reverseDirection(byte dir) {
 }
 
 void stepFromDirection(vertex &pos, byte dir) {
-  if (dir & DIR_LEFT) pos.addx(-1);
-  else if (dir & DIR_RIGHT) pos.addx(1);
-
-  if (dir & DIR_UP) pos.addy(-1);
-  else if (dir & DIR_DOWN) pos.addy(1);
+  if (dir & DIR_LEFT) {
+    pos.addx(-1);
+  } else if (dir & DIR_RIGHT) {
+    pos.addx(1);
+  } else if (dir & DIR_UP) {
+    pos.addy(-1);
+  } else if (dir & DIR_DOWN) {
+    pos.addy(1);
+  }
 }
 
 bool positionOnPerimeter(vertex pos, int &edgeStart, int &edgeEnd) {
