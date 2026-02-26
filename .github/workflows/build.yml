@@ -4,32 +4,30 @@ on:
   push:
     branches: [ master ]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout repository
       - uses: actions/checkout@v4
 
-      # Step 2: Install PlatformIO
       - name: Install PlatformIO
         run: |
           python3 -m pip install --upgrade pip
           pip install platformio
 
-      # Step 3: Build project
       - name: Build
         run: |
           pio run
 
-      # Step 4: Copy HEX to docs/qixboy.hex
       - name: Export HEX
         run: |
           mkdir -p docs
           cp .pio/build/arduboy/firmware.hex docs/qixboy.hex
 
-      # Step 5: Commit HEX
       - name: Commit HEX
         run: |
           git config user.name "github-actions"
