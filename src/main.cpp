@@ -33,10 +33,23 @@ int fillAnimationFrame = 0;
 bool fillDith = false;
 // How many frames idle in draw mode before fuze begins
 const uint16_t FUZE_IDLE_THRESHOLD = 45;
-GAMESTATE gameState = PLAYING; // change to START_SCREEN once implimented
+GAMESTATE gameState = START_SCREEN; // change to START_SCREEN once implimented
 
 namespace {
   using FrameHandler = void (*)();
+
+  void tickMenuFrame() {
+    // create menu sprite
+    byte input = getInput();
+    arduboy.setCursor(0, 0);
+    arduboy.setTextSize(1);
+    arduboy.print(F("Qixboy"));
+    // temp
+    if (input) {
+      gameState = PLAYING;
+    }
+    // drawMenu();
+  }
 
   void tickPlayingFrame() {
     restoreFuzeBackground();
@@ -80,12 +93,17 @@ namespace {
     drawDeathAnimation();
   }
 
+  void tickGameOverFrame() {
+    // create game over sprite
+    // drawScore();
+  }
+
   constexpr FrameHandler FRAME_HANDLERS[] = {
-    nullptr,
+    tickMenuFrame,
     tickPlayingFrame,
     tickFillAnimationFrame,
     tickDeathAnimationFrame,
-    nullptr
+    tickGameOverFrame
   };
 }
 
@@ -93,6 +111,7 @@ void setup() {
     arduboy.boot();
     arduboy.setFrameRate(60);
     arduboy.clear();
+    respawn();
     drawPerimeter();
     updateCanMove();
     saveBackground(p.position);
@@ -104,12 +123,12 @@ void setup() {
 
 void loop() {
     if (!arduboy.nextFrame()) return;
-    frameCounter++;
+        frameCounter++;
     if (frameCounter >= 255) frameCounter = 0;
 
     const FrameHandler handler = FRAME_HANDLERS[gameState];
     if (handler != nullptr) {
-      handler();
+        handler();
     }
     p.tickFrame();
     arduboy.display();

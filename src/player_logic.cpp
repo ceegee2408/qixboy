@@ -255,6 +255,21 @@ void updateCanDraw() {
     if (blocked) allowedMoves &= ~dirs[d];
   }
 
+  // If the trail is near capacity, prevent any turns that would add a
+  // new trail vertex.  `addTrailVertex()` stores up to `MAX_VERTICES/4`
+  // vertices, so when we're at capacity-1, a subsequent turn would
+  // consume the final slot — block turning proactively to avoid
+  // reaching the limit mid-draw.
+  int trailCapacity = MAX_VERTICES / 4;
+  if (p.trailCount >= trailCapacity - 1) {
+    byte lastDir = p.getLastTrailDir();
+    if (lastDir != 0) {
+      // Only allow continuing in the same direction as the last trail
+      // segment; clear other directional bits so the player cannot turn.
+      allowedMoves &= lastDir;
+    }
+  }
+
   p.allowedMoves = allowedMoves | (p.allowedMoves & 0x30); // Preserve draw mode bits
 }
 
