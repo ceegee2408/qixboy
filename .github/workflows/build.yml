@@ -16,7 +16,7 @@ jobs:
         run: |
           arduino-cli core update-index
           arduino-cli core install arduboy:avr \
-            --additional-urls https://raw.githubusercontent.com/Arduboy/arduino-arduboy/master/package_arduboy_index.json
+            --additional-urls https://raw.githubusercontent.com/MrBlinky/Arduboy-homemade-package/master/package_arduboy_homemade_index.json 
 
       - name: Install Arduboy2 library
         run: |
