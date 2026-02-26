@@ -33,4 +33,4 @@ jobs:
           git config user.email "actions@github.com"
           git add docs/qixboy.hex
           git commit -m "Auto-update qixboy.hex" || echo "No changes"
-          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:${{ github.ref_name }}
+          git push "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" HEAD:"${{ github.ref_name }}"
