@@ -10,6 +10,97 @@ static bool drawCooldown = false;
 extern vertex currentFillVerts[];
 extern int currentFillCount;
 
+namespace {
+const byte DIR_LEFT  = 0x01;
+const byte DIR_RIGHT = 0x02;
+const byte DIR_UP    = 0x04;
+const byte DIR_DOWN  = 0x08;
+const byte MODE_FAST = 0x10;
+const byte MODE_SLOW = 0x20;
+
+byte reverseDirection(byte dir) {
+  if (dir == DIR_LEFT) return DIR_RIGHT;
+  if (dir == DIR_RIGHT) return DIR_LEFT;
+  if (dir == DIR_UP) return DIR_DOWN;
+  if (dir == DIR_DOWN) return DIR_UP;
+  return 0;
+}
+
+void stepFromDirection(vertex &pos, byte dir) {
+  if (dir & DIR_LEFT) {
+    pos.addx(-1);
+  } else if (dir & DIR_RIGHT) {
+    pos.addx(1);
+  } else if (dir & DIR_UP) {
+    pos.addy(-1);
+  } else if (dir & DIR_DOWN) {
+    pos.addy(1);
+  }
+}
+
+bool positionOnPerimeter(vertex pos, int &edgeStart, int &edgeEnd) {
+  for (int i = 0; i < perim.vertexCount; i++) {
+    int next = (i + 1) % perim.vertexCount;
+    if (pointOnSegment(pos, perim.vertices[i], perim.vertices[next])) {
+      edgeStart = i;
+      edgeEnd = next;
+      if (compareVertices(pos, perim.vertices[i])) edgeEnd = i;
+      else if (compareVertices(pos, perim.vertices[next])) edgeStart = next;
+      return true;
+    }
+  }
+  return false;
+}
+
+bool refreshPlayerPerimeterIndices() {
+  for (int i = 0; i < perim.vertexCount; i++) {
+    int next = (i + 1) % perim.vertexCount;
+    vertex a = perim.vertices[i];
+    vertex b = perim.vertices[next];
+    if (compareVertices(p.position, a)) {
+      p.setPerimIndex(0, i);
+      p.setPerimIndex(1, i);
+      return true;
+    }
+    if (compareVertices(p.position, b)) {
+      p.setPerimIndex(0, next);
+      p.setPerimIndex(1, next);
+      return true;
+    }
+    if (pointOnSegment(p.position, a, b)) {
+      p.setPerimIndex(0, i);
+      p.setPerimIndex(1, next);
+      return true;
+    }
+  }
+  return false;
+}
+
+bool finalizeDrawPath(bool isFastMove) {
+  int edgeStart;
+  int edgeEnd;
+  if (!positionOnPerimeter(p.position, edgeStart, edgeEnd)) {
+    return false;
+  }
+
+  p.setDrawEndIndex(0, edgeStart);
+  p.setDrawEndIndex(1, edgeEnd);
+  p.addTrailVertex(p.position);
+  updatePerim();
+
+  gameState = FILL_ANIMATION;
+  initializeFill(isFastMove);
+
+  bool found = refreshPlayerPerimeterIndices();
+  if (!found) {
+    p.allowedMoves &= ~0x30;
+  }
+  drawCooldown = true;
+  updateCanMove();
+  return true;
+}
+}
+
 byte getInput() {
   byte input = 0;
   if (arduboy.pressed(LEFT_BUTTON)) {
@@ -56,104 +147,35 @@ void updateActiveDirection(byte input) {
 
 void updatePlayer(byte input) {
   updateDrawAllowance(input); // Check if we should enter or stay in draw mode
-  if (p.allowedMoves & 0x30) {
-    // In draw mode — always draw trail
+  if (p.allowedMoves & (MODE_FAST | MODE_SLOW)) {
     drawTrail();
-    if ((input & 0x10) && (p.allowedMoves & 0x10)) {
-      // Fast move
-      drawMove(input, true);
-    } else if ((input & 0x20) && (p.allowedMoves & 0x20)) {
-      // Slow move
-      drawMove(input, false);
+    if ((input & MODE_FAST) && (p.allowedMoves & MODE_FAST)) {
+      drawMove(true);
+    } else if ((input & MODE_SLOW) && (p.allowedMoves & MODE_SLOW)) {
+      drawMove(false);
     }
   } else if (input & 0x0F) {
-    // Perimeter move
-    perimeterMove(input);
+    perimeterMove();
   }
 }
 
-void drawMove(byte input, bool speed) {
-  byte interval = speed ? FAST_MOVE : SLOW_MOVE;
-  // Only move when frameCounter is divisible by the interval
+void drawMove(bool isFastMove) {
+  byte interval = isFastMove ? FAST_MOVE : SLOW_MOVE;
   if (frameCounter % interval == 0) {
-    // Only update trail direction and move if activeDir is actually allowed
     if (p.getActiveDir() & p.allowedMoves) {
-      // Check if direction changed BEFORE moving - add current position as corner
       if (p.getLastTrailDir() != 0 && p.getActiveDir() != p.getLastTrailDir()) {
         p.addTrailVertex(p.position);
       }
       p.setLastTrailDir(p.getActiveDir());
       movePlayer(p.allowedMoves);
     }
-    
-    // Check if player has returned to the perimeter (only after moving away from start)
+
     if (p.trailCount > 0 &&
         (p.position.getx() != p.trail[0].getx() || p.position.gety() != p.trail[0].gety())) {
-      for (int i = 0; i < perim.vertexCount; i++) {
-        vertex v1 = perim.vertices[i];
-        vertex v2 = perim.vertices[(i + 1) % perim.vertexCount];
-        if (pointOnSegment(p.position, v1, v2)) {
-          // Player is back on perimeter, store end indices
-          // If we re-enter exactly at a corner, normalize indices to that single vertex.
-          int endA = i;
-          int endB = (i + 1) % perim.vertexCount;
-          if (p.position.getx() == v1.getx() && p.position.gety() == v1.gety()) {
-            endA = i;
-            endB = i;
-          } else if (p.position.getx() == v2.getx() && p.position.gety() == v2.gety()) {
-            endA = endB;
-            endB = endB;
-          }
-          p.setDrawEndIndex(0, endA);
-          p.setDrawEndIndex(1, endB);
-          // Add end position as final trail vertex
-          p.addTrailVertex(p.position);
-          // Update the perimeter shape with the trail
-          updatePerim();
-          // Re-find player position on the new perimeter — check exact corners first
-          bool found = false;
-          for (int j = 0; j < perim.vertexCount; j++) {
-            vertex nv1 = perim.vertices[j];
-            vertex nv2 = perim.vertices[(j + 1) % perim.vertexCount];
-            // Exact vertex match -> collapse to corner
-            if (compareVertices(p.position, nv1)) {
-              p.setPerimIndex(0, j);
-              p.setPerimIndex(1, j);
-              found = true;
-              break;
-            }
-            int nextIdx = (j + 1) % perim.vertexCount;
-            if (compareVertices(p.position, nv2)) {
-              p.setPerimIndex(0, nextIdx);
-              p.setPerimIndex(1, nextIdx);
-              found = true;
-              break;
-            }
-            // Mid-edge match
-            if (pointOnSegment(p.position, nv1, nv2)) {
-              p.setPerimIndex(0, j);
-              p.setPerimIndex(1, nextIdx);
-              found = true;
-              break;
-            }
-          }
-          // fill current perimeter and trail for animation
-          gameState = FILL_ANIMATION;
-          initializeFill(speed);
-          if (!found) {
-            p.allowedMoves &= ~0x30; // clear draw mode bits
-            drawCooldown = true;     // prevent immediate re-entry if A/B still held
-            updateCanMove();
-            return;
-          }
-          // Perimeter indices are normalized above — compute allowed moves
-          drawCooldown = true;       // prevent immediate re-entry if A/B still held
-          updateCanMove();
-          return; // Exit drawMove entirely to avoid updateCanDraw overwriting allowedMoves
-        }
+      if (finalizeDrawPath(isFastMove)) {
+        return;
       }
     }
-    // Still in draw mode, update valid moves
     updateCanDraw();
   }
 }
@@ -163,13 +185,7 @@ void updateCanDraw() {
 
   byte lastDir = p.getLastTrailDir();
 
-  // Compute reverse of last trail direction — always blocked (prevents 180s)
-  byte reverseDir = 0;
-  if (lastDir == 0x01) reverseDir = 0x02;
-  else if (lastDir == 0x02) reverseDir = 0x01;
-  else if (lastDir == 0x04) reverseDir = 0x08;
-  else if (lastDir == 0x08) reverseDir = 0x04;
-  allowedMoves &= ~reverseDir;
+  allowedMoves &= ~reverseDirection(lastDir);
 
   // Block U-turns: if the current segment is < 3 pixels, block the reverse
   // of the *previous* segment's direction (prevents tight parallel lines).
@@ -177,12 +193,7 @@ void updateCanDraw() {
     int curSegLen = vertexDistance(p.position, p.trail[p.trailCount - 1]);
     if (curSegLen < 3) {
       byte prevSegDir = getDirection(p.trail[p.trailCount - 2], p.trail[p.trailCount - 1]);
-      byte reversePrevDir = 0;
-      if (prevSegDir == 0x01) reversePrevDir = 0x02;
-      else if (prevSegDir == 0x02) reversePrevDir = 0x01;
-      else if (prevSegDir == 0x04) reversePrevDir = 0x08;
-      else if (prevSegDir == 0x08) reversePrevDir = 0x04;
-      allowedMoves &= ~reversePrevDir;
+      allowedMoves &= ~reverseDirection(prevSegDir);
     }
   }
 
@@ -248,25 +259,10 @@ void updateCanDraw() {
 }
 
 bool movePlayer(byte allowedMoves) {
-  // Return true when the player actually changed position this call.
   vertex prevPos = p.position;
-  // Only move if active direction is allowed
   byte activeDir = p.getActiveDir();
   if (activeDir & allowedMoves) {
-    // Move player based on activeDir (only one direction per frame)
-    if (activeDir & 0x01) {
-      // Move left
-      p.position.addx(-1);
-    } else if (activeDir & 0x02) {
-      // Move right
-      p.position.addx(1);
-    } else if (activeDir & 0x04) {
-      // Move up
-      p.position.addy(-1);
-    } else if (activeDir & 0x08) {
-      // Move down
-      p.position.addy(1);
-    }
+    stepFromDirection(p.position, activeDir);
   }
 
   if (p.position.getx() != prevPos.getx() || p.position.gety() != prevPos.gety()) {
@@ -276,10 +272,8 @@ bool movePlayer(byte allowedMoves) {
   return false;
 }
 
-void perimeterMove(byte input) {
-  // Only move when frameCounter is divisible by FAST_MOVE interval
+void perimeterMove() {
   if (frameCounter % FAST_MOVE == 0) {
-    // Call movePlayer with perimeter constraints
     vertex prevPos = p.position;
     movePlayer(p.allowedMoves);
     if (p.position.getx() != prevPos.getx() || p.position.gety() != prevPos.gety()) {
@@ -385,17 +379,10 @@ void updateDrawAllowance(byte input) {
   // Block re-entry for the remainder of the held press after a draw completes.
   if (drawCooldown) return;
   
-  // Check if active direction is not allowed by perimeter movement
   byte activeDir = p.getActiveDir();
   if (activeDir != 0 && (activeDir & p.allowedMoves) == 0) {
     vertex nextPos = p.position;
-    
-    // Check each individual direction bit
-    if (activeDir & 0x01) nextPos.addx(-1);  // left
-    else if (activeDir & 0x02) nextPos.addx(1);  // right
-    
-    if (activeDir & 0x04) nextPos.addy(-1);  // up
-    else if (activeDir & 0x08) nextPos.addy(1);  // down
+    stepFromDirection(nextPos, activeDir);
     
     // Only allow draw mode if next position is inside the perimeter
     if (isInsidePolygon(nextPos, perim.vertices, perim.vertexCount)) {
