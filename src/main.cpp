@@ -85,8 +85,6 @@ namespace {
       return;
     }
 
-    saveBackground(p.position);
-    drawPlayer();
     // Draw Qix (history + current line) only when q indicates render ready
     if (arduboy.everyXFrames(q.renderInterval)) {
       drawQix();
@@ -97,6 +95,8 @@ namespace {
         }
       }
     }
+    saveBackground(p.position);
+    drawPlayer();
     drawDebug();
   }
 

@@ -16,8 +16,9 @@ extern const uint8_t PROGMEM fuzeSpriteFrames[][SPRITE_SIZE];
 #define SPARX_SIZE 7
 extern const uint8_t PROGMEM sparxSpriteFrames[][SPARX_SIZE];
 
-extern const uint8_t PROGMEM largeNumbers[SPRITE_SIZE][10] {
-        
-}
+// 5x7 digit sprites (0–9). Each row byte is MSB-left: bit7=col0 … bit3=col4.
+#define DIGIT_HEIGHT 7
+#define DIGIT_WIDTH  5
+extern const uint8_t PROGMEM digitSprites[10][DIGIT_HEIGHT];
 
 #endif // SPRITES_H

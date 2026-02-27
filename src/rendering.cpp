@@ -219,7 +219,7 @@ void scanlineFill(vertex* verts, int count, bool fast) {
     int minY = min(v1.gety(), v2.gety());
     int maxY = max(v1.gety(), v2.gety());
     if (y < minY || y >= maxY) continue;
-    if (v1.gety() == v2.gety()) pointMult += abs(v2.getx() - v1.getx()); continue; // Skip horizontal edges
+    if (v1.gety() == v2.gety()) continue; // Skip horizontal edges
     int x = (v1.getx() == v2.getx()) ? v1.getx()
       : v1.getx() + (y - v1.gety()) * (v2.getx() - v1.getx()) / (v2.gety() - v1.gety());
     if (xCount < (int)(sizeof(xs) / sizeof(xs[0]))) xs[xCount++] = x;
@@ -240,28 +240,26 @@ void scanlineFill(vertex* verts, int count, bool fast) {
   for (int i = 0; i + 1 < xCount; i += 2) {
     int x1 = xs[i];
     int x2 = xs[i + 1];
-    if (x2 > x1 + 1) drawAnimatedHLine(x1 + 1, y, x2 - x1 - 1, fast), pointMult += abs(x2 - x1) /*number of pixels filled (for scoring)*/;
-  }
+    if (x2 > x1 + 1) {
+      pointMult += (x2 - x1);
+      drawAnimatedHLine(x1 + 1, y, x2 - x1 - 1, fast);
+    }
 
-  // Advance to next scanline for next frame; when finished, finalize
-  fillAnimationFrame++;
-  pointCounter(pointMult, fast);
-  if (fillAnimationFrame >= HEIGHT) {
-    gameState = PLAYING;
-    fillAnimationFrame = 0;
-    saveBackground(p.position);
+    // Advance to next scanline for next frame; when finished, finalize
+    fillAnimationFrame++;
+    pointCounter(pointMult, fast);
+    if (fillAnimationFrame >= HEIGHT) {
+      gameState = PLAYING;
+      fillAnimationFrame = 0;
+      saveBackground(p.position);
+    }
   }
 }
 
 void drawAnimatedHLine(int x, int y, int w, bool fast) { 
-  // Draw a horizontal span. For 'fast' fill use a dithering pattern (draw
-  // alternating pixels) to produce a dashed appearance. Do not call
-  // `display()` or `delay()` here — the main loop handles frame timing.
   if (w <= 0) return;
-  //exceptions
   if (y == 0) return;
   if (fast) {
-    // Draw dithered pattern, but do not overwrite existing white pixels
     for (int i = 0; i < w; i++) {
       if (((x + i + y) & 1) == 0) {
         int px = x + i;
@@ -277,12 +275,24 @@ void drawAnimatedHLine(int x, int y, int w, bool fast) {
 }
 
 void pointCounter(int points, bool fast) {
+  long oldscore = score;
   if (fast) {
     score += points / 2; // Fast fill: half points
   } else {
     score += points;     // Slow fill: full points
   }
-  
+  static const long pow10[5] = { 1, 10, 100, 1000, 10000 };
+  for(int i = 0; i < 5; i++) {
+    int x = (i + 1) * (DIGIT_WIDTH + 1);
+    int oldDigit = (oldscore / pow10[i]) % 10;
+    int newDigit = (score    / pow10[i]) % 10;
+    if (oldDigit != newDigit) {
+      // Erase old digit, then draw new one
+      arduboy.drawBitmap(x, HEIGHT - DIGIT_HEIGHT, digitSprites[oldDigit], DIGIT_WIDTH, DIGIT_HEIGHT, INVERT);
+      arduboy.drawBitmap(x, HEIGHT - DIGIT_HEIGHT, digitSprites[newDigit], DIGIT_WIDTH, DIGIT_HEIGHT, INVERT);
+    
+    }
+  }
 }
 
 void drawSpriteFrame_P(const uint8_t *frames, int frameIdx, int frameW, int frameH, int x, int y) {
@@ -338,6 +348,8 @@ void respawn() {
   q.p2 = vertex((WIDTH * 2) / 3, (HEIGHT * 2) / 3);
   q.v1x = 2; q.v1y = 1;
   q.v2x = -1; q.v2y = 2;
+  q.hist1[0] = q.p1; q.hist2[0] = q.p2;
+  q.histIdx = 1;
   // Initialize qix history
   for (int i = 0; i < q.QIX_HISTORY; i++) { q.hist1[i] = q.p1; q.hist2[i] = q.p2; }
   q.histIdx = 0;

@@ -42,5 +42,7 @@ void scanlineFill(vertex* verts, int count, bool fast);
 // Draw a frame from a PROGMEM frames array stored as [frame][row].
 // `frameW` may be 5 or 7; helper chooses appropriate bit mask.
 void drawSpriteFrame_P(const uint8_t *frames, int frameIdx, int frameW, int frameH, int x, int y);
+void drawInvertedLine(vertex v1, vertex v2);
+void pointCounter(int points, bool fast);
 
 #endif // RENDERING_H
