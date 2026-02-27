@@ -245,7 +245,7 @@ void scanlineFill(vertex* verts, int count, bool fast) {
 
   // Advance to next scanline for next frame; when finished, finalize
   fillAnimationFrame++;
-  pointCounter(pointMult, fast);
+  //pointCounter(pointMult, fast);
   if (fillAnimationFrame >= HEIGHT) {
     gameState = PLAYING;
     fillAnimationFrame = 0;
