@@ -13,12 +13,12 @@
 // Global game objects
 int score = 0;
 int highScores[6] = {
-  EEPROM.read(EEPROM_HIGH_SCORE_ADDR),
-  EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 1),
-  EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 2),
-  EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 3),
-  EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 4),
-  EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 5)
+    EEPROM.read(EEPROM_HIGH_SCORE_ADDR),
+    EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 1),
+    EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 2),
+    EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 3),
+    EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 4),
+    EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 5)
 };
 player p;
 perimeter perim;
