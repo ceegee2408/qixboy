@@ -11,7 +11,7 @@
 #include "EEPROM.h"
 
 // Global game objects
-int score = 0;
+long score = 0;
 int highScores[6] = {
     EEPROM.read(EEPROM_HIGH_SCORE_ADDR),
     EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 1),
@@ -32,7 +32,7 @@ int currentFillCount = 0;
 int fillAnimationFrame = 0;
 bool fillDith = false;
 // How many frames idle in draw mode before fuze begins
-const uint16_t FUZE_IDLE_THRESHOLD = 45;
+const uint16_t FUZE_IDLE_THRESHOLD = 10;
 GAMESTATE gameState = START_SCREEN; // change to START_SCREEN once implimented
 
 namespace {
@@ -66,12 +66,20 @@ namespace {
         fz.begin();
       }
     }
-    fz.update();
+    if (fz.active) {
+      saveFuzeBackground(fz.position);
+      fz.render();
+    }
 
-    // Erase Qix history lines before checking pixels, then update Qix
-    eraseQixHistory();
-    // Update Qix movement each frame
-    q.update();
+    if (p.isInDrawMode()) {
+      p.eraseTrail();
+      q.update();
+      p.drawTrail();
+    } else {
+      q.update();
+    }
+    fz.update();
+    
 
     if (gameState != PLAYING) {
       return;
@@ -79,11 +87,15 @@ namespace {
 
     saveBackground(p.position);
     drawPlayer();
-    // Draw Qix (history + current line)
-    drawQix();
-    if (fz.active) {
-      saveFuzeBackground(fz.position);
-      fz.render();
+    // Draw Qix (history + current line) only when q indicates render ready
+    if (arduboy.everyXFrames(q.renderInterval)) {
+      drawQix();
+      eraseQixHistory();
+      if(p.isInDrawMode()) {
+        if (q.drawModeCheck()) {
+          p.loseLife();
+        }
+      }
     }
     drawDebug();
   }
@@ -123,6 +135,7 @@ void setup() {
     updateCanMove();
     saveBackground(p.position);
     drawPlayer();
+    drawQix();
     // Advance player's idle/movement frame counter every loop iteration
     p.tickFrame();
     arduboy.display();

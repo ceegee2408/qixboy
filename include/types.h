@@ -49,4 +49,5 @@ class vertex {
     }
 };
 
+
 #endif // TYPES_H

@@ -14,6 +14,7 @@ extern perimeter perim;
 extern qix q;
 extern int fillAnimationFrame;
 extern bool fillDith;
+extern long score;
 
 // Game state tracker (declare, define in one .cpp only)
 #include "gamestate.h"

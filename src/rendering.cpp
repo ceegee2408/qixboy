@@ -99,6 +99,29 @@ void drawLine(vertex v1, vertex v2) {
     arduboy.drawLine(v1.getx(), v1.gety(), v2.getx(), v2.gety());
 }
 
+void drawInvertedLine(vertex v1, vertex v2) {
+    int x1 = v1.getx(), y1 = v1.gety();
+    int x2 = v2.getx(), y2 = v2.gety();
+    int dx = abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
+    int dy = -abs(y2 - y1), sy = y1 < y2 ? 1 : -1;
+    int err = dx + dy, e2;
+
+    while (true) {
+        bool cur = arduboy.getPixel(x1, y1);
+        arduboy.drawPixel(x1, y1, cur ? BLACK : WHITE);
+        if (x1 == x2 && y1 == y2) break;
+        e2 = 2 * err;
+        if (e2 > dy) {
+            err += dy;
+            x1 += sx;
+        }
+        if (e2 < dx) {
+            err += dx;
+            y1 += sy;
+        }
+    }
+}
+
 void drawPerimeter() {
   for (int i = 0; i < perim.vertexCount; i++) {
     vertex v1 = perim.vertices[i];
@@ -129,24 +152,12 @@ void drawPlayer() {
 }
 
 void drawQix() {
-  // Draw history lines (stippled) and the current solid line.
-  for (int i = 1; i <= q.QIX_HISTORY; i++) {
-    int idx = (q.histIdx - i + q.QIX_HISTORY) % q.QIX_HISTORY;
-    if ((i % 2) == 0) continue; // skip every other for stipple
-    arduboy.drawLine(q.hist1[idx].getx(), q.hist1[idx].gety(),
-                     q.hist2[idx].getx(), q.hist2[idx].gety(), WHITE);
-  }
-  // Draw current line solid
-  arduboy.drawLine(q.p1.getx(), q.p1.gety(), q.p2.getx(), q.p2.gety(), WHITE);
+  drawInvertedLine(q.p1, q.p2);
+  q.recordHistory();
 }
 
 void eraseQixHistory() {
-  // Draw all stored history lines black to remove them from framebuffer
-  for (int i = 0; i < q.QIX_HISTORY; i++) {
-    int idx = (q.histIdx + i) % q.QIX_HISTORY; // older -> newer
-    arduboy.drawLine(q.hist1[idx].getx(), q.hist1[idx].gety(),
-                     q.hist2[idx].getx(), q.hist2[idx].gety(), BLACK);
-  }
+    drawInvertedLine(q.hist1[(q.histIdx) % q.QIX_HISTORY], q.hist2[(q.histIdx) % q.QIX_HISTORY]);
 }
 
 void drawTrail() {
@@ -179,6 +190,10 @@ void drawDebug() {
 void initializeFill(bool speed) {
   fillAnimationFrame = 0;
   fillDith = speed;
+  if (fz.active) {
+    restoreFuzeBackground();
+    fz.active = false;
+  }
   restoreBackground();
 }
 
@@ -186,13 +201,10 @@ void initializeFill(bool speed) {
 void drawAnimatedHLine(int x, int y, int w, bool fast);
 
 void scanlineFill(vertex* verts, int count, bool fast) {
-  // Use global `fillAnimationFrame` as the current scanline index. Each call
-  // advances the animation by one horizontal scanline so the animation can
-  // progress across frames instead of blocking the loop.
+  int pointMult = 0;
   int y = fillAnimationFrame;
   if (y < 0) y = 0;
   if (y >= HEIGHT) {
-    // Nothing to do; ensure state reset and background saved.
     gameState = PLAYING;
     fillAnimationFrame = 0;
     return;
@@ -207,7 +219,7 @@ void scanlineFill(vertex* verts, int count, bool fast) {
     int minY = min(v1.gety(), v2.gety());
     int maxY = max(v1.gety(), v2.gety());
     if (y < minY || y >= maxY) continue;
-    if (v1.gety() == v2.gety()) continue; // Skip horizontal edges
+    if (v1.gety() == v2.gety()) pointMult += abs(v2.getx() - v1.getx()); continue; // Skip horizontal edges
     int x = (v1.getx() == v2.getx()) ? v1.getx()
       : v1.getx() + (y - v1.gety()) * (v2.getx() - v1.getx()) / (v2.gety() - v1.gety());
     if (xCount < (int)(sizeof(xs) / sizeof(xs[0]))) xs[xCount++] = x;
@@ -228,11 +240,12 @@ void scanlineFill(vertex* verts, int count, bool fast) {
   for (int i = 0; i + 1 < xCount; i += 2) {
     int x1 = xs[i];
     int x2 = xs[i + 1];
-    if (x2 > x1 + 1) drawAnimatedHLine(x1 + 1, y, x2 - x1 - 1, fast);
+    if (x2 > x1 + 1) drawAnimatedHLine(x1 + 1, y, x2 - x1 - 1, fast), pointMult += abs(x2 - x1) /*number of pixels filled (for scoring)*/;
   }
 
   // Advance to next scanline for next frame; when finished, finalize
   fillAnimationFrame++;
+  pointCounter(pointMult, fast);
   if (fillAnimationFrame >= HEIGHT) {
     gameState = PLAYING;
     fillAnimationFrame = 0;
@@ -261,6 +274,15 @@ void drawAnimatedHLine(int x, int y, int w, bool fast) {
       if (!arduboy.getPixel(px, y)) arduboy.drawPixel(px, y, WHITE);
     }
   }
+}
+
+void pointCounter(int points, bool fast) {
+  if (fast) {
+    score += points / 2; // Fast fill: half points
+  } else {
+    score += points;     // Slow fill: full points
+  }
+  
 }
 
 void drawSpriteFrame_P(const uint8_t *frames, int frameIdx, int frameW, int frameH, int x, int y) {
@@ -333,10 +355,6 @@ void drawDeathAnimation() {
   if(deathAnimPhase < 2) {
     int cx = deathAnimCenter.getx();
     int cy = deathAnimCenter.gety();
-
-    // Offsets from current radius — gaps shrink at larger distances
-    // e.g. at r=14: draws at 14, 11, 7, 2 (gaps 3, 4, 5)
-    // increase DEATH_RADIUS_MAX if you want more rings visible
     int offsets[] = { 0, 3, 7, 11, 15, 17, 19 };
 
     for (int o = 0; o < 4; o++) {

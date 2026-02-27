@@ -1,12 +1,14 @@
 #include "geometry.h"
 #include "entities.h"
 
-int crossProduct(vertex a, vertex b, vertex c) {
-  int ax = b.getx() - a.getx();
-  int ay = b.gety() - a.gety();
-  int bx = c.getx() - a.getx();
-  int by = c.gety() - a.gety();
-  return ax * by - ay * bx;
+int cross(vertex a, vertex b) {
+  return a.getx() * b.gety() - a.gety() * b.getx();
+}
+
+int orientation(vertex a, vertex b, vertex c) {
+  int val = cross(vertex(b.getx() - a.getx(), b.gety() - a.gety()), vertex(c.getx() - a.getx(), c.gety() - a.gety()));
+  if (val == 0) return 0; // collinear
+  return (val > 0) ? 1 : -1; // clock or counterclock wise
 }
 
 void findIntersections(int y, int arcStart, int arcEnd, int arcDir, int* xs, int& xcount) {
@@ -46,11 +48,11 @@ bool isInsidePolygon(vertex point, vertex* verts, int count) {
     vertex v1 = verts[i];
     vertex v2 = verts[(i + 1) % count];
     if (v1.gety() <= point.gety()) {
-      if (v2.gety() > point.gety() && crossProduct(v1, v2, point) > 0) {
+      if (v2.gety() > point.gety() && orientation(v1, v2, point) > 0) {
         windingNumber++;
       }
     } else {
-      if (v2.gety() <= point.gety() && crossProduct(v1, v2, point) < 0) {
+      if (v2.gety() <= point.gety() && orientation(v1, v2, point) < 0) {
         windingNumber--;
       }
     }
@@ -70,6 +72,12 @@ bool pointOnSegment(vertex point, vertex v1, vertex v2) {
     return point.gety() == v1.gety() && point.getx() >= minX && point.getx() <= maxX;
   }
   return false;
+}
+
+bool doLinesIntersect(vertex p1, vertex p2, vertex q1, vertex q2) { 
+  int o1 = orientation(q1, q2, p1), o2 = orientation(q1, q2, p2),
+      o3 = orientation(p1, p2, q1), o4 = orientation(p1, p2, q2);
+  return (o1 * o2 < 0) && (o3 * o4 < 0);
 }
 
 bool compareVertices(vertex v1, vertex v2) {

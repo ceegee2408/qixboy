@@ -91,6 +91,31 @@ class player {
       }
     }
 
+    void eraseTrail() {
+      // erase from buffer just to make collision checks work correctly during qix movement
+      for (int i = 0; i < trailCount; i++) {
+        int x = trail[i].getx();
+        int y = trail[i].gety();
+        if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT) {
+          arduboy.drawPixel(x, y, BLACK);
+        }
+      }
+    }
+    
+    void drawTrail() {
+      for (int i = 0; i < trailCount; i++) {
+        int x = trail[i].getx();
+        int y = trail[i].gety();
+        if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT) {
+          arduboy.drawPixel(x, y, WHITE);
+        }
+      }
+    }
+
+    bool isInDrawMode() {
+      return (allowedMoves & 0x30) != 0;
+    }
+
     // Frames since last movement. Increment with `tickFrame()` each game frame;
     // call `noteMoved()` from movement code when the player actually moves.
     uint16_t framesSinceMove = 0;
@@ -194,22 +219,38 @@ class qix {
     vertex hist1[QIX_HISTORY];
     vertex hist2[QIX_HISTORY];
     int histIdx = 0;
-    // Movement throttling
+    // Movement throttling     
+    const int maxSpeed = 3;
     int moveTick = 0;
     int moveInterval = 2;
+
+    // Rendering throttling: how often the qix is actually redrawn
+    // (movement can still update more frequently). Adjustable.
+    int renderTick = 0;
+    int renderInterval = 4; // draw every N frames
+
+    // Return true when it's time to render (increments internal tick)
+    inline bool shouldRender() {
+      renderTick++;
+      if (renderTick >= renderInterval) {
+        renderTick = 0;
+        return true;
+      }
+      return false;
+    }
 
     qix() {
       p1 = vertex(WIDTH / 3, HEIGHT / 3);
       p2 = vertex((WIDTH * 2) / 3, (HEIGHT * 2) / 3);
       // Deliberately asymmetric so the pattern is never periodic/boring
-      v1x = 2; v1y = 1;
-      v2x = -1; v2y = 2;
+      v1x = constrain(v1x + (int)random(-1, 2), -maxSpeed, maxSpeed); v1y = constrain(v1y + (int)random(-1, 2), -maxSpeed, maxSpeed);
+      v2x = constrain(v2x + (int)random(-1, 2), -maxSpeed, maxSpeed); v2y = constrain(v2y + (int)random(-1, 2), -maxSpeed, maxSpeed);
       // Initialize history
-      for (int i = 0; i < QIX_HISTORY; i++) {
-        hist1[i] = p1;
-        hist2[i] = p2;
+      for (int i = 1; i < QIX_HISTORY; i++) {
+        hist1[i] = vertex(0, 0);
+        hist2[i] = vertex(0, 0);
       }
-      histIdx = 0;
+      histIdx = 1;
     }
 
     void update() {
@@ -217,13 +258,7 @@ class qix {
       moveTick++;
       if (moveTick < moveInterval) return;
       moveTick = 0;
-      const int maxSpeed = 3;
-      const int maxDist = 30; // soft maximum Manhattan distance between endpoints
-
-      // Store history (old positions)
-      hist1[histIdx] = p1;
-      hist2[histIdx] = p2;
-      histIdx = (histIdx + 1) % QIX_HISTORY;
+      const int maxDist = 20; // soft maximum Manhattan distance between endpoints
 
       // Randomly nudge velocities within a max speed
       v1x = constrain(v1x + (int)random(-1, 2), -maxSpeed, maxSpeed);
@@ -286,6 +321,27 @@ class qix {
 
       p1 = vertex(nx1, ny1);
       p2 = vertex(nx2, ny2);
+    }
+
+    void recordHistory() {
+      hist1[histIdx] = p1;
+      hist2[histIdx] = p2;
+      histIdx = (histIdx + 1) % QIX_HISTORY;
+    }
+
+    bool drawModeCheck() {
+
+      // Check each consecutive trail segment
+      if (p.trailCount >= 2) {
+        for (int i = 0; i + 1 < p.trailCount; i++) {
+          if (doLinesIntersect(p.trail[i], p.trail[i + 1], p1, p2)) return true;
+        }
+      }
+      // Also check the open segment from the last trail vertex to the
+      // player's current position (this is the in-progress segment).
+      if (doLinesIntersect(p.trail[p.trailCount - 1], p.position, p1, p2)) return true;
+
+      return false;
     }
 
     vertex center() const {
@@ -372,8 +428,6 @@ class fuze {
       }
     }
     void render();
-    // If the fuze was interrupted by player movement, we store the
-    // previous fuze position here so it can resume instantly later.
     vertex resumePos;
     bool hasResumePos = false;
     byte resumeTrailIndex = 0;
