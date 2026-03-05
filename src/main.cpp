@@ -3,7 +3,6 @@
 #include <Arduino.h>
 #include <Arduboy2.h>
 #include "config.h"
-#include "types.h"
 #include "entities.h"
 #include "geometry.h"
 #include "rendering.h"
@@ -13,12 +12,7 @@
 // Global game objects
 long score = 0;
 int highScores[6] = {
-    EEPROM.read(EEPROM_HIGH_SCORE_ADDR),
-    EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 1),
-    EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 2),
-    EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 3),
-    EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 4),
-    EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 5)
+  0, 0, 0, 0, 0, 0
 };
 player p;
 perimeter perim;
@@ -44,7 +38,7 @@ namespace {
     arduboy.setCursor(0, 0);
     arduboy.setTextSize(1);
     arduboy.print(F("Qixboy"));
-    // temp
+    // 
     if (input) {
       gameState = PLAYING;
     }
@@ -52,24 +46,24 @@ namespace {
   }
 
   void tickPlayingFrame() {
-    restoreFuzeBackground();
-    restoreBackground();
+    /*
+    Rendering priority:
+      During Gameplay:
+        1. Player
+          a. Trail (qix.update must be called after trail is cleared but before redrawn)
+        2. Enemies
+          a. Qix
+          b. Sparx
+          c. Fuze
+      During Fill:
+
+    */
 
     byte input = getInput();
     updateActiveDirection(input);
-    updatePlayer(input);
-
-    if (!fz.active) {
-      if (fz.hasResumePos && p.framesSinceMove <= 5 && (p.allowedMoves & 0x30)) {
-        fz.begin();
-      } else if (p.isInDrawModeAndIdle(FUZE_IDLE_THRESHOLD)) {
-        fz.begin();
-      }
-    }
-    if (fz.active) {
-      saveFuzeBackground(fz.position);
-      fz.render();
-    }
+    updatePlayerPosition(input);
+    drawPlayer();
+    
 
     if (p.isInDrawMode()) {
       p.eraseTrail();
@@ -85,19 +79,23 @@ namespace {
       return;
     }
 
-    saveBackground(p.position);
-    drawPlayer();
     // Draw Qix (history + current line) only when q indicates render ready
     if (arduboy.everyXFrames(q.renderInterval)) {
       drawQix();
       eraseQixHistory();
       if(p.isInDrawMode()) {
-        if (q.drawModeCheck()) {
+        if (q.isCollidingWithPlayer()) {
           p.loseLife();
         }
       }
     }
+    saveBackground(p.position);
+    drawPlayer();
     drawDebug();
+  }
+
+  void tickLevelComplete() {
+    // to be filled
   }
 
   void tickFillAnimationFrame() {
@@ -120,6 +118,7 @@ namespace {
   constexpr FrameHandler FRAME_HANDLERS[] = {
     tickMenuFrame,
     tickPlayingFrame,
+    tickLevelComplete,
     tickFillAnimationFrame,
     tickDeathAnimationFrame,
     tickGameOverFrame
@@ -128,16 +127,9 @@ namespace {
 
 void setup() {
     arduboy.boot();
+    arduboy.flashlight();
     arduboy.setFrameRate(60);
     arduboy.clear();
-    respawn();
-    drawPerimeter();
-    updateCanMove();
-    saveBackground(p.position);
-    drawPlayer();
-    drawQix();
-    // Advance player's idle/movement frame counter every loop iteration
-    p.tickFrame();
     arduboy.display();
 }
 
@@ -146,10 +138,11 @@ void loop() {
         frameCounter++;
     if (frameCounter >= 255) frameCounter = 0;
 
+    // render next frame based on game state
     const FrameHandler handler = FRAME_HANDLERS[gameState];
     if (handler != nullptr) {
         handler();
     }
-    p.tickFrame();
+
     arduboy.display();
 }
