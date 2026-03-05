@@ -28,13 +28,13 @@ byte reverseDirection(byte dir) {
 
 void stepFromDirection(vertex &pos, byte dir) {
   if (dir & DIR_LEFT) {
-    pos.x--;
+    if (pos.x > 0) pos.x--;
   } else if (dir & DIR_RIGHT) {
-    pos.x++;
+    if (pos.x < WIDTH - 1) pos.x++;
   } else if (dir & DIR_UP) {
-    pos.y--;
+    if (pos.y > 0) pos.y--;
   } else if (dir & DIR_DOWN) {
-    pos.y++;
+    if (pos.y < HEIGHT - 1) pos.y++;
   }
 }
 
@@ -204,9 +204,16 @@ void updateCanDraw() {
   for (int d = 0; d < 4; d++) {
     if (!(allowedMoves & dirs[d])) continue; // already blocked
 
-    vertex nextPos = p.position;
-    nextPos.x += dx[d];
-    nextPos.y += dy[d];
+    // Compute lookahead using signed int to avoid byte wrap
+    int nx = (int)p.position.x + dx[d];
+    int ny = (int)p.position.y + dy[d];
+    if (nx < 0 || nx >= WIDTH || ny < 0 || ny >= HEIGHT) {
+      allowedMoves &= ~dirs[d];
+      continue;
+    }
+    vertex nextPos;
+    nextPos.x = (byte)nx;
+    nextPos.y = (byte)ny;
 
     // If next position is on the perimeter, always allow (don't block re-entry)
     bool onPerim = false;
@@ -236,18 +243,24 @@ void updateCanDraw() {
 
     // Check 2 steps ahead against trail segments (prevents drawing adjacent to trail)
     if (!blocked) {
-      vertex nextPos2 = nextPos;
-      nextPos2.x += dx[d];
-      nextPos2.y += dy[d];
-      for (int i = 0; i < p.trailCount - 1; i++) {
-        if (pointOnSegment(nextPos2, p.trail[i], p.trail[i + 1])) {
-          blocked = true;
-          break;
+      int nx2 = nx + dx[d];
+      int ny2 = ny + dy[d];
+      vertex nextPos2;
+      if (nx2 < 0 || nx2 >= WIDTH || ny2 < 0 || ny2 >= HEIGHT) {
+        blocked = true;
+      } else {
+        nextPos2.x = (byte)nx2;
+        nextPos2.y = (byte)ny2;
+        for (int i = 0; i < p.trailCount - 1; i++) {
+          if (pointOnSegment(nextPos2, p.trail[i], p.trail[i + 1])) {
+            blocked = true;
+            break;
+          }
         }
-      }
-      if (!blocked && p.trailCount > 0) {
-        if (pointOnSegment(nextPos2, p.trail[p.trailCount - 1], p.position)) {
-          blocked = true;
+        if (!blocked && p.trailCount > 0) {
+          if (pointOnSegment(nextPos2, p.trail[p.trailCount - 1], p.position)) {
+            blocked = true;
+          }
         }
       }
     }

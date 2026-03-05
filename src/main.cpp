@@ -42,10 +42,6 @@ namespace {
       arduboy.clear();
       respawn();
       drawPerimeter();
-      updateCanMove();
-      saveBackground(p.position);
-      drawPlayer();
-      drawQix();
     }
     // drawMenu();
   }
@@ -69,6 +65,8 @@ namespace {
     byte input = getInput();
     updateActiveDirection(input);
     updatePlayerPosition(input);
+    saveBackground(p.position, BG_PLAYER);
+    drawPlayer();
 
     // 3. Trail handling: erase trail, update qix (collision uses buffer), redraw trail
     if (p.isInDrawMode()) {
@@ -106,8 +104,7 @@ namespace {
     }
 
     // 6. Save backgrounds and draw sprites
-    saveBackground(p.position, BG_PLAYER);
-    drawPlayer();
+
 
     if (fz.active) {
       saveBackground(fz.position, BG_FUZE);
