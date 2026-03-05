@@ -38,9 +38,14 @@ namespace {
     arduboy.setCursor(0, 0);
     arduboy.setTextSize(1);
     arduboy.print(F("Qixboy"));
-    // 
     if (input) {
-      gameState = PLAYING;
+      arduboy.clear();
+      respawn();
+      drawPerimeter();
+      updateCanMove();
+      saveBackground(p.position);
+      drawPlayer();
+      drawQix();
     }
     // drawMenu();
   }
@@ -49,22 +54,23 @@ namespace {
     /*
     Rendering priority:
       During Gameplay:
-        1. Player
-          a. Trail (qix.update must be called after trail is cleared but before redrawn)
-        2. Enemies
-          a. Qix
-          b. Sparx
-          c. Fuze
-      During Fill:
-
+        1. Restore previous frame sprites (fuze first, then player)
+        2. Process input / movement / trail
+        3. Update enemies (qix, fuze)
+        4. Draw qix
+        5. Save backgrounds, then draw sprites (player, fuze)
     */
 
+    // 1. Restore previous frame's sprites
+    restoreBackground(BG_FUZE);
+    restoreBackground(BG_PLAYER);
+
+    // 2. Process input and movement
     byte input = getInput();
     updateActiveDirection(input);
     updatePlayerPosition(input);
-    drawPlayer();
-    
 
+    // 3. Trail handling: erase trail, update qix (collision uses buffer), redraw trail
     if (p.isInDrawMode()) {
       p.eraseTrail();
       q.update();
@@ -72,14 +78,23 @@ namespace {
     } else {
       q.update();
     }
-    fz.update();
-    
 
+    // 4. Fuze activation and update
+    if (!fz.active) {
+      if (fz.hasResumePos && p.getFramesSinceMove() <= 5 && (p.allowedMoves & 0x30)) {
+        fz.begin();
+      } else if (p.isInDrawModeAndIdle(FUZE_IDLE_THRESHOLD)) {
+        fz.begin();
+      }
+    }
+    fz.update();
+
+    // If state changed (e.g. death or fill), bail out before drawing
     if (gameState != PLAYING) {
       return;
     }
 
-    // Draw Qix (history + current line) only when q indicates render ready
+    // 5. Draw Qix (history + current line) only when q indicates render ready
     if (arduboy.everyXFrames(q.renderInterval)) {
       drawQix();
       eraseQixHistory();
@@ -89,8 +104,16 @@ namespace {
         }
       }
     }
-    saveBackground(p.position);
+
+    // 6. Save backgrounds and draw sprites
+    saveBackground(p.position, BG_PLAYER);
     drawPlayer();
+
+    if (fz.active) {
+      saveBackground(fz.position, BG_FUZE);
+      fz.render();
+    }
+
     drawDebug();
   }
 
@@ -99,10 +122,10 @@ namespace {
   }
 
   void tickFillAnimationFrame() {
-    restoreBackground();
+    restoreBackground(BG_PLAYER);
     scanlineFill(currentFillVerts, currentFillCount, fillDith);
     drawPerimeter();
-    saveBackground(p.position);
+    saveBackground(p.position, BG_PLAYER);
     drawPlayer();
   }
 

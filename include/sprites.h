@@ -16,8 +16,4 @@ extern const uint8_t PROGMEM fuzeSpriteFrames[][SPRITE_SIZE];
 #define SPARX_SIZE 7
 extern const uint8_t PROGMEM sparxSpriteFrames[][SPARX_SIZE];
 
-extern const uint8_t PROGMEM largeNumbers[SPRITE_SIZE][10] {
-        
-}
-
 #endif // SPRITES_H

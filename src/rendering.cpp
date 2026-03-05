@@ -7,14 +7,10 @@
 static_assert(SPRITE_SIZE * SPRITE_SIZE <= 32,
               "SPRITE_SIZE too large for uint32_t background buffer");
 
-static uint32_t bgBuffer  = 0;
-static vertex   bgSavedPos;
-static bool     bgSaved   = false;
-
-// Separate background buffer for fuze sprite to avoid smearing
-static uint32_t fzBgBuffer = 0;
-static vertex   fzBgSavedPos;
-static bool     fzBgSaved = false;
+// Array-based background buffers: one per BgSlot
+static uint32_t bgBuffers[BG_SLOT_COUNT]  = {0, 0};
+static vertex   bgSavedPositions[BG_SLOT_COUNT];
+static bool     bgSavedFlags[BG_SLOT_COUNT] = {false, false};
 // Death animation center (set when the player dies)
 vertex deathAnimCenter;
 
@@ -27,81 +23,47 @@ static int radiusStep = 0;
 #define DEATH_TICK_INTERVAL  1
 #define DEATH_PULSE_COUNT    2
 
-void saveBackground(vertex pos) {
-  bgSavedPos = pos;
-  bgSaved    = true;
-  bgBuffer   = 0;
-  int sx = pos.getx() - PLAYER_SIZE;
-  int sy = pos.gety() - PLAYER_SIZE;
+void saveBackground(vertex pos, BgSlot slot) {
+  bgSavedPositions[slot] = pos;
+  bgSavedFlags[slot] = true;
+  bgBuffers[slot] = 0;
+  int sx = pos.x - PLAYER_SIZE;
+  int sy = pos.y - PLAYER_SIZE;
   for (int row = 0; row < SPRITE_SIZE; row++) {
       for (int col = 0; col < SPRITE_SIZE; col++) {
           int px = sx + col, py = sy + row;
           if (px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
               if (arduboy.getPixel(px, py)) {
-                  bgBuffer |= (1UL << (row * SPRITE_SIZE + col));
+                  bgBuffers[slot] |= (1UL << (row * SPRITE_SIZE + col));
               }
           }
       }
   }
 }
 
-void restoreBackground() {
-  if (!bgSaved) return;
-  int sx = bgSavedPos.getx() - PLAYER_SIZE;
-  int sy = bgSavedPos.gety() - PLAYER_SIZE;
+void restoreBackground(BgSlot slot) {
+  if (!bgSavedFlags[slot]) return;
+  int sx = bgSavedPositions[slot].x - PLAYER_SIZE;
+  int sy = bgSavedPositions[slot].y - PLAYER_SIZE;
   for (int row = 0; row < SPRITE_SIZE; row++) {
       for (int col = 0; col < SPRITE_SIZE; col++) {
           int px = sx + col, py = sy + row;
           if (px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
-              bool lit = (bgBuffer >> (row * SPRITE_SIZE + col)) & 1;
+              bool lit = (bgBuffers[slot] >> (row * SPRITE_SIZE + col)) & 1;
               arduboy.drawPixel(px, py, lit ? WHITE : BLACK);
           }
       }
   }
-  bgSaved = false;
-}
-
-void saveFuzeBackground(vertex pos) {
-  fzBgSavedPos = pos;
-  fzBgSaved = true;
-  fzBgBuffer = 0;
-  int sx = pos.getx() - PLAYER_SIZE;
-  int sy = pos.gety() - PLAYER_SIZE;
-  for (int row = 0; row < SPRITE_SIZE; row++) {
-    for (int col = 0; col < SPRITE_SIZE; col++) {
-      int px = sx + col, py = sy + row;
-      if (px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
-        if (arduboy.getPixel(px, py)) {
-          fzBgBuffer |= (1UL << (row * SPRITE_SIZE + col));
-        }
-      }
-    }
-  }
-}
-
-void restoreFuzeBackground() {
-  if (!fzBgSaved) return;
-  int sx = fzBgSavedPos.getx() - PLAYER_SIZE;
-  int sy = fzBgSavedPos.gety() - PLAYER_SIZE;
-  for (int row = 0; row < SPRITE_SIZE; row++) {
-    for (int col = 0; col < SPRITE_SIZE; col++) {
-      int px = sx + col, py = sy + row;
-      if (px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
-        bool lit = (fzBgBuffer >> (row * SPRITE_SIZE + col)) & 1;
-        arduboy.drawPixel(px, py, lit ? WHITE : BLACK);
-      }
-    }
-  }
-  fzBgSaved = false;
+  bgSavedFlags[slot] = false;
 }
 
 void drawLine(vertex v1, vertex v2) {
-    arduboy.drawLine(v1.getx(), v1.gety(), v2.getx(), v2.gety());
+    arduboy.drawLine(v1.x, v1.y, v2.x, v2.y);
 }
 
 void drawInvertedLine(vertex v1, vertex v2) {
-    int x1 = v1.getx(), y1 = v1.gety();
-    int x2 = v2.getx(), y2 = v2.gety();
+    int x1 = v1.x, y1 = v1.y;
+    int x2 = v2.x, y2 = v2.y;
     int dx = abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
     int dy = -abs(y2 - y1), sy = y1 < y2 ? 1 : -1;
     int err = dx + dy, e2;
@@ -126,17 +88,17 @@ void drawPerimeter() {
   for (int i = 0; i < perim.vertexCount; i++) {
     vertex v1 = perim.vertices[i];
     vertex v2 = perim.vertices[(i + 1) % perim.vertexCount];
-    if (v1.gety() == v2.gety()) {
-      arduboy.drawFastHLine(min(v1.getx(), v2.getx()), v1.gety(), abs(v2.getx() - v1.getx()) + 1);
-    } else if (v1.getx() == v2.getx()) {
-      arduboy.drawFastVLine(v1.getx(), min(v1.gety(), v2.gety()), abs(v2.gety() - v1.gety()) + 1);
+    if (v1.y == v2.y) {
+      arduboy.drawFastHLine(min(v1.x, v2.x), v1.y, abs(v2.x - v1.x) + 1);
+    } else if (v1.x == v2.x) {
+      arduboy.drawFastVLine(v1.x, min(v1.y, v2.y), abs(v2.y - v1.y) + 1);
     }
   }
 }
 
 void drawPlayer() {
-    int sx = p.position.getx() - PLAYER_SIZE;
-    int sy = p.position.gety() - PLAYER_SIZE;
+    int sx = p.position.x - PLAYER_SIZE;
+    int sy = p.position.y - PLAYER_SIZE;
     for (int row = 0; row < SPRITE_SIZE; row++) {
         uint8_t bits = pgm_read_byte(&playerSpriteRows[row]);
         for (int col = 0; col < SPRITE_SIZE; col++) {
@@ -191,17 +153,17 @@ void initializeFill(bool speed) {
   fillAnimationFrame = 0;
   fillDith = speed;
   if (fz.active) {
-    restoreFuzeBackground();
+    restoreBackground(BG_FUZE);
     fz.active = false;
   }
-  restoreBackground();
+  restoreBackground(BG_PLAYER);
 }
 
 // Prototype for animated horizontal line used by scanlineFill
 void drawAnimatedHLine(int x, int y, int w, bool fast);
 
 void scanlineFill(vertex* verts, int count, bool fast) {
-  int pointMult = 0;
+  //int pointMult = 0;
   int y = fillAnimationFrame;
   if (y < 0) y = 0;
   if (y >= HEIGHT) {
@@ -216,12 +178,12 @@ void scanlineFill(vertex* verts, int count, bool fast) {
   for (int i = 0; i < count; i++) {
     vertex v1 = verts[i];
     vertex v2 = verts[(i + 1) % count];
-    int minY = min(v1.gety(), v2.gety());
-    int maxY = max(v1.gety(), v2.gety());
+    int minY = min(v1.y, v2.y);
+    int maxY = max(v1.y, v2.y);
     if (y < minY || y >= maxY) continue;
-    if (v1.gety() == v2.gety()) pointMult += abs(v2.getx() - v1.getx()); continue; // Skip horizontal edges
-    int x = (v1.getx() == v2.getx()) ? v1.getx()
-      : v1.getx() + (y - v1.gety()) * (v2.getx() - v1.getx()) / (v2.gety() - v1.gety());
+    if (v1.y == v2.y) continue; // Skip horizontal edges
+    int x = (v1.x == v2.x) ? v1.x
+      : v1.x + (y - v1.y) * (v2.x - v1.x) / (v2.y - v1.y);
     if (xCount < (int)(sizeof(xs) / sizeof(xs[0]))) xs[xCount++] = x;
   }
 
@@ -240,7 +202,7 @@ void scanlineFill(vertex* verts, int count, bool fast) {
   for (int i = 0; i + 1 < xCount; i += 2) {
     int x1 = xs[i];
     int x2 = xs[i + 1];
-    if (x2 > x1 + 1) drawAnimatedHLine(x1 + 1, y, x2 - x1 - 1, fast), pointMult += abs(x2 - x1) /*number of pixels filled (for scoring)*/;
+    if (x2 > x1 + 1) drawAnimatedHLine(x1 + 1, y, x2 - x1 - 1, fast);/*number of pixels filled (for scoring)*/;
   }
 
   // Advance to next scanline for next frame; when finished, finalize
@@ -314,8 +276,8 @@ void drawSpriteFrame_P(const uint8_t *frames, int frameIdx, int frameW, int fram
 // flicker. Uses the PROGMEM frames in `fuzeSpriteFrames`.
 void fuze::render() {
   if (!active) return;
-  int fx = position.getx() - PLAYER_SIZE;
-  int fy = position.gety() - PLAYER_SIZE;
+  int fx = position.x - PLAYER_SIZE;
+  int fy = position.y - PLAYER_SIZE;
   // fuze.frame may run 0..7; frameset is 4 frames, so modulo 4
   int fidx = (frame / FUZE_FRAME_TICKS) % FUZE_FRAME_COUNT;
   drawSpriteFrame_P((const uint8_t*)fuzeSpriteFrames, fidx, SPRITE_SIZE, SPRITE_SIZE, fx, fy);
@@ -328,7 +290,7 @@ void initializeDeathAnimation() {
   deathAnimTick   = 0;
   deathAnimPhase  = 0;
   radiusStep = 10;
-  restoreBackground();
+  restoreBackground(BG_PLAYER);
 }
 
 void respawn() {
@@ -336,15 +298,13 @@ void respawn() {
   perim.reset();
   q.p1 = vertex(WIDTH / 3, HEIGHT / 3);
   q.p2 = vertex((WIDTH * 2) / 3, (HEIGHT * 2) / 3);
-  q.v1x = 2; q.v1y = 1;
-  q.v2x = -1; q.v2y = 2;
-  // Initialize qix history
-  for (int i = 0; i < q.QIX_HISTORY; i++) { q.hist1[i] = q.p1; q.hist2[i] = q.p2; }
-  q.histIdx = 0;
+  q.hist1[0] = q.p1;
+  q.hist2[0] = q.p2;
+  q.histIdx = 1;
   fz.active = false;
   fillAnimationFrame = 0;
-  bgSaved = false;
-  fzBgSaved = false;
+  bgSavedFlags[BG_PLAYER] = false;
+  bgSavedFlags[BG_FUZE] = false;
   gameState = PLAYING;
 }
 
@@ -353,8 +313,8 @@ int yreset = 0;
 
 void drawDeathAnimation() {
   if(deathAnimPhase < 2) {
-    int cx = deathAnimCenter.getx();
-    int cy = deathAnimCenter.gety();
+    int cx = deathAnimCenter.x;
+    int cy = deathAnimCenter.y;
     int offsets[] = { 0, 3, 7, 11, 15, 17, 19 };
 
     for (int o = 0; o < 4; o++) {

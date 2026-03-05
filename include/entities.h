@@ -1,16 +1,31 @@
 #ifndef ENTITIES_H
 #define ENTITIES_H
 
-#include <Arduino.h>
-#include "config.h"
-#include "types.h"
+#include <Arduboy2.h>
 #include "geometry.h"
+#include "config.h"
 #include "gamestate.h"
-// Sprite frame counts
 #include "sprites.h"
 
-// Access Arduboy framebuffer for collision check
+
 extern Arduboy2 arduboy;
+extern uint16_t frameCounter;
+
+class vertex {
+  public:
+    byte x;
+    byte y;
+    
+    vertex(int x, int y) {
+      this->x = x;
+      this->y = y;
+    }
+    
+    vertex() {
+      this->x = 0;
+      this->y = 0;
+    }
+};
 
 class player {
   private:
@@ -94,8 +109,8 @@ class player {
     void eraseTrail() {
       // erase from buffer just to make collision checks work correctly during qix movement
       for (int i = 0; i < trailCount; i++) {
-        int x = trail[i].getx();
-        int y = trail[i].gety();
+        int x = trail[i].x;
+        int y = trail[i].y;
         if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT) {
           arduboy.drawPixel(x, y, BLACK);
         }
@@ -104,8 +119,8 @@ class player {
     
     void drawTrail() {
       for (int i = 0; i < trailCount; i++) {
-        int x = trail[i].getx();
-        int y = trail[i].gety();
+        int x = trail[i].x;
+        int y = trail[i].y;
         if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT) {
           arduboy.drawPixel(x, y, WHITE);
         }
@@ -116,16 +131,23 @@ class player {
       return (allowedMoves & 0x30) != 0;
     }
 
-    // Frames since last movement. Increment with `tickFrame()` each game frame;
-    // call `noteMoved()` from movement code when the player actually moves.
-    uint16_t framesSinceMove = 0;
-    inline void noteMoved() { framesSinceMove = 0; }
-    inline void tickFrame() { framesSinceMove++; }
+    // Frame number when the player last moved. Used with the global
+    // frameCounter to compute idle time without a per-frame tick call.
+    uint16_t lastMoveFrame = 0;
+    inline void noteMoved() { lastMoveFrame = frameCounter; }
+
+    // Compute frames elapsed since the player last moved, handling
+    // the 0-254 wraparound of frameCounter.
+    inline uint16_t getFramesSinceMove() {
+      if (frameCounter >= lastMoveFrame)
+        return frameCounter - lastMoveFrame;
+      return (255 - lastMoveFrame) + frameCounter;
+    }
 
     // Helper: return true when currently in draw mode and have been idle
     // for at least `threshold` frames.
     inline bool isInDrawModeAndIdle(uint16_t threshold) {
-      return ((allowedMoves & 0x30) != 0) && (framesSinceMove >= threshold);
+      return ((allowedMoves & 0x30) != 0) && (getFramesSinceMove() >= threshold);
     }
 
     void respawn() {
@@ -186,8 +208,8 @@ class perimeter {
         vertex vCurr = vertices[i];
         vertex vNext = vertices[next];
         bool collinear =
-          (vPrev.getx() == vCurr.getx() && vCurr.getx() == vNext.getx()) ||
-          (vPrev.gety() == vCurr.gety() && vCurr.gety() == vNext.gety());
+          (vPrev.x == vCurr.x && vCurr.x == vNext.x) ||
+          (vPrev.y == vCurr.y && vCurr.y == vNext.y);
         if (collinear) {
           removeVertex(i);
           // Re-check position i — it now holds the old i+1 vertex,
@@ -205,6 +227,14 @@ class perimeter {
       vertices[3] = vertex(WIDTH - 1, 0);
     }
 };
+// Declare global player instance (defined in main.cpp)
+extern player p;
+// Forward-declare fuze so other translation units can reference the global
+class fuze;
+// Declare global fuze instance (defined in main.cpp)
+extern fuze fz;
+
+extern bool doLinesIntersect(vertex p1, vertex p2, vertex p3, vertex p4);
 
 class qix {
   public:
@@ -250,6 +280,8 @@ class qix {
         hist1[i] = vertex(0, 0);
         hist2[i] = vertex(0, 0);
       }
+      hist1[0] = p1;
+      hist2[0] = p2;
       histIdx = 1;
     }
 
@@ -271,8 +303,8 @@ class qix {
       if (v2x == 0 && v2y == 0) v2y = 1;
 
       // Soft pull to keep endpoints from drifting too far apart
-      int dx = p2.getx() - p1.getx();
-      int dy = p2.gety() - p1.gety();
+      int dx = p2.x - p1.x;
+      int dy = p2.y - p1.y;
       int dist = abs(dx) + abs(dy);
       if (dist > maxDist) {
         if (dx > 0) { v1x++; v2x--; } else { v1x--; v2x++; }
@@ -284,26 +316,26 @@ class qix {
       }
 
       // Compute tentative next positions
-      int nx1 = p1.getx() + v1x;
-      int ny1 = p1.gety() + v1y;
-      int nx2 = p2.getx() + v2x;
-      int ny2 = p2.gety() + v2y;
+      int nx1 = p1.x + v1x;
+      int ny1 = p1.y + v1y;
+      int nx2 = p2.x + v2x;
+      int ny2 = p2.y + v2y;
 
       // If an endpoint would move onto a white pixel, invert its velocity
       if (nx1 >= 0 && nx1 < WIDTH && ny1 >= 0 && ny1 < HEIGHT) {
         if (arduboy.getPixel(nx1, ny1)) {
           v1x = -v1x;
           v1y = -v1y;
-          nx1 = p1.getx() + v1x;
-          ny1 = p1.gety() + v1y;
+          nx1 = p1.x + v1x;
+          ny1 = p1.y + v1y;
         }
       }
       if (nx2 >= 0 && nx2 < WIDTH && ny2 >= 0 && ny2 < HEIGHT) {
         if (arduboy.getPixel(nx2, ny2)) {
           v2x = -v2x;
           v2y = -v2y;
-          nx2 = p2.getx() + v2x;
-          ny2 = p2.gety() + v2y;
+          nx2 = p2.x + v2x;
+          ny2 = p2.y + v2y;
         }
       }
 
@@ -314,10 +346,10 @@ class qix {
       if (ny2 <= 1 || ny2 >= HEIGHT - 2) v2y = -v2y;
 
       // Apply (clamped) moves after any bounce adjustments
-      nx1 = constrain(p1.getx() + v1x, 1, WIDTH - 2);
-      ny1 = constrain(p1.gety() + v1y, 1, HEIGHT - 2);
-      nx2 = constrain(p2.getx() + v2x, 1, WIDTH - 2);
-      ny2 = constrain(p2.gety() + v2y, 1, HEIGHT - 2);
+      nx1 = constrain(p1.x + v1x, 1, WIDTH - 2);
+      ny1 = constrain(p1.y + v1y, 1, HEIGHT - 2);
+      nx2 = constrain(p2.x + v2x, 1, WIDTH - 2);
+      ny2 = constrain(p2.y + v2y, 1, HEIGHT - 2);
 
       p1 = vertex(nx1, ny1);
       p2 = vertex(nx2, ny2);
@@ -329,7 +361,7 @@ class qix {
       histIdx = (histIdx + 1) % QIX_HISTORY;
     }
 
-    bool drawModeCheck() {
+    bool isCollidingWithPlayer() {
 
       // Check each consecutive trail segment
       if (p.trailCount >= 2) {
@@ -345,19 +377,17 @@ class qix {
     }
 
     vertex center() const {
-      return vertex((p1.getx() + p2.getx()) / 2, (p1.gety() + p2.gety()) / 2);
+      return vertex((p1.x + p2.x) / 2, (p1.y + p2.y) / 2);
     }
 };
 
-// Declare global player instance (defined in main.cpp)
-extern player p;
-// Forward-declare fuze so other translation units can reference the global
-class fuze;
-// Declare global fuze instance (defined in main.cpp)
-extern fuze fz;
 
-// Forward-declare rendering function needed inside fuze::update()
-void restoreFuzeBackground();
+
+// Forward-declare rendering functions needed inside fuze
+enum BgSlot : byte;
+void restoreBackground(BgSlot slot);
+bool compareVertices(vertex v1, vertex v2);
+byte getDirection(vertex from, vertex to);
 
 class fuze {
   public:
@@ -392,7 +422,7 @@ class fuze {
         active = false;
         return;
       }
-      if (p.framesSinceMove < (uint16_t)SLOW_MOVE) {
+      if (p.getFramesSinceMove() < (uint16_t)SLOW_MOVE) {
         return;
       }
       frame++;
@@ -420,10 +450,10 @@ class fuze {
 
       if (hasNext && doMove) {
         switch (getDirection(position, nextTarget)) {
-          case 0x01: position.addx(-1); break; // left
-          case 0x02: position.addx(1); break;  // right
-          case 0x04: position.addy(-1); break; // up
-          case 0x08: position.addy(1); break;  // down
+          case 0x01: position.x = -1; break; // left
+          case 0x02: position.x = 1; break;  // right
+          case 0x04: position.y = -1; break; // up
+          case 0x08: position.y = 1; break;  // down
         }
       }
     }

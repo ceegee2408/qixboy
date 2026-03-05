@@ -3,7 +3,6 @@
 
 #include <Arduino.h>
 #include <Arduboy2.h>
-#include "types.h"
 #include "entities.h"
 #include "config.h"
 
@@ -16,13 +15,13 @@ extern int fillAnimationFrame;
 extern bool fillDith;
 extern long score;
 
-// Game state tracker (declare, define in one .cpp only)
 #include "gamestate.h"
 
-void saveBackground(vertex pos);
-void restoreBackground();
-void saveFuzeBackground(vertex pos);
-void restoreFuzeBackground();
+// Background buffer slots for save/restore
+enum BgSlot : byte { BG_PLAYER = 0, BG_FUZE = 1, BG_SLOT_COUNT = 2 };
+
+void saveBackground(vertex pos, BgSlot slot = BG_PLAYER);
+void restoreBackground(BgSlot slot = BG_PLAYER);
 void initializeFill(bool speed);
 
 void drawLine(vertex v1, vertex v2);

@@ -28,13 +28,13 @@ byte reverseDirection(byte dir) {
 
 void stepFromDirection(vertex &pos, byte dir) {
   if (dir & DIR_LEFT) {
-    pos.addx(-1);
+    pos.x--;
   } else if (dir & DIR_RIGHT) {
-    pos.addx(1);
+    pos.x++;
   } else if (dir & DIR_UP) {
-    pos.addy(-1);
+    pos.y--;
   } else if (dir & DIR_DOWN) {
-    pos.addy(1);
+    pos.y++;
   }
 }
 
@@ -145,7 +145,7 @@ void updateActiveDirection(byte input) {
   p.prevInput = input;
 }
 
-void updatePlayer(byte input) {
+void updatePlayerPosition(byte input) {
   updateDrawAllowance(input); // Check if we should enter or stay in draw mode
   if (p.allowedMoves & (MODE_FAST | MODE_SLOW)) {
     drawTrail();
@@ -171,7 +171,7 @@ void drawMove(bool isFastMove) {
     }
 
     if (p.trailCount > 0 &&
-        (p.position.getx() != p.trail[0].getx() || p.position.gety() != p.trail[0].gety())) {
+        (p.position.x != p.trail[0].x || p.position.y != p.trail[0].y)) {
       if (finalizeDrawPath(isFastMove)) {
         return;
       }
@@ -205,8 +205,8 @@ void updateCanDraw() {
     if (!(allowedMoves & dirs[d])) continue; // already blocked
 
     vertex nextPos = p.position;
-    nextPos.addx(dx[d]);
-    nextPos.addy(dy[d]);
+    nextPos.x = dx[d];
+    nextPos.y = dy[d];
 
     // If next position is on the perimeter, always allow (don't block re-entry)
     bool onPerim = false;
@@ -237,8 +237,8 @@ void updateCanDraw() {
     // Check 2 steps ahead against trail segments (prevents drawing adjacent to trail)
     if (!blocked) {
       vertex nextPos2 = nextPos;
-      nextPos2.addx(dx[d]);
-      nextPos2.addy(dy[d]);
+      nextPos2.x = dx[d];
+      nextPos2.y = dy[d];
       for (int i = 0; i < p.trailCount - 1; i++) {
         if (pointOnSegment(nextPos2, p.trail[i], p.trail[i + 1])) {
           blocked = true;
@@ -280,7 +280,7 @@ bool movePlayer(byte allowedMoves) {
     stepFromDirection(p.position, activeDir);
   }
 
-  if (p.position.getx() != prevPos.getx() || p.position.gety() != prevPos.gety()) {
+  if (p.position.x != prevPos.x || p.position.y != prevPos.y) {
     p.noteMoved();
     return true;
   }
@@ -291,7 +291,7 @@ void perimeterMove() {
   if (frameCounter % FAST_MOVE == 0) {
     vertex prevPos = p.position;
     movePlayer(p.allowedMoves);
-    if (p.position.getx() != prevPos.getx() || p.position.gety() != prevPos.gety()) {
+    if (p.position.x != prevPos.x || p.position.y != prevPos.y) {
       updatePerimIndex();
       updateCanMove();
     }
@@ -306,12 +306,12 @@ void updatePerimIndex() {
   int prevIdx = (idxA - 1 + perim.vertexCount) % perim.vertexCount;
   int nextIdx = (idxB + 1) % perim.vertexCount;
 
-  if (p.position.getx() == v1.getx() && p.position.gety() == v1.gety()) {
+  if (p.position.x == v1.x && p.position.y == v1.y) {
     p.setPerimIndex(0, idxA);
     p.setPerimIndex(1, idxA);
     return;
   }
-  if (p.position.getx() == v2.getx() && p.position.gety() == v2.gety()) {
+  if (p.position.x == v2.x && p.position.y == v2.y) {
     p.setPerimIndex(0, idxB);
     p.setPerimIndex(1, idxB);
     return;
@@ -351,9 +351,9 @@ void updatePerimIndex() {
     int fi1 = p.getPerimIndex(1);
     vertex w0 = perim.vertices[fi0];
     vertex w1 = perim.vertices[fi1];
-    if (p.position.getx() == w0.getx() && p.position.gety() == w0.gety()) {
+    if (p.position.x == w0.x && p.position.y == w0.y) {
       p.setPerimIndex(1, fi0);
-    } else if (p.position.getx() == w1.getx() && p.position.gety() == w1.gety()) {
+    } else if (p.position.x == w1.x && p.position.y == w1.y) {
       p.setPerimIndex(0, fi1);
     }
   }
@@ -412,9 +412,9 @@ void updateDrawAllowance(byte input) {
           int sA = i;
           int sB = (i + 1) % perim.vertexCount;
           // Collapse to single index if exactly at a corner vertex
-          if (p.position.getx() == v1.getx() && p.position.gety() == v1.gety()) {
+          if (p.position.x == v1.x && p.position.y == v1.y) {
             sB = sA;
-          } else if (p.position.getx() == v2.getx() && p.position.gety() == v2.gety()) {
+          } else if (p.position.x == v2.x && p.position.y == v2.y) {
             sA = sB;
           }
           p.setDrawStartIndex(0, sA);
@@ -460,18 +460,18 @@ void updatePerim() {
   vertex edgeV1 = perim.vertices[startIdx];
   vertex edgeV2 = perim.vertices[startIdxNext];
   bool needFlip;
-  if (edgeV1.getx() != edgeV2.getx()) {
+  if (edgeV1.x != edgeV2.x) {
     // Horizontal edge: normalize by x
-    if (edgeV1.getx() < edgeV2.getx())
-      needFlip = p.trail[0].getx() > p.trail[p.trailCount - 1].getx();
+    if (edgeV1.x < edgeV2.x)
+      needFlip = p.trail[0].x > p.trail[p.trailCount - 1].x;
     else
-      needFlip = p.trail[0].getx() < p.trail[p.trailCount - 1].getx();
+      needFlip = p.trail[0].x < p.trail[p.trailCount - 1].x;
   } else {
     // Vertical edge: normalize by y
-    if (edgeV1.gety() < edgeV2.gety())
-      needFlip = p.trail[0].gety() > p.trail[p.trailCount - 1].gety();
+    if (edgeV1.y < edgeV2.y)
+      needFlip = p.trail[0].y > p.trail[p.trailCount - 1].y;
     else
-      needFlip = p.trail[0].gety() < p.trail[p.trailCount - 1].gety();
+      needFlip = p.trail[0].y < p.trail[p.trailCount - 1].y;
   }
   if (needFlip) reverseVertices(p.trail, p.trailCount);
   }
@@ -573,7 +573,7 @@ void updatePerim() {
   // remaining fuze pixels so a subsequent new draw starts fresh.
   extern fuze fz;
   if (fz.hasResumePos) fz.hasResumePos = false;
-  restoreFuzeBackground();
+  restoreBackground(BG_FUZE);
 }
 
 bool isQixInsidePerimeter() {

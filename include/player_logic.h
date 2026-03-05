@@ -3,7 +3,6 @@
 
 #include <Arduino.h>
 #include <Arduboy2.h>
-#include "types.h"
 #include "entities.h"
 #include "config.h"
 
@@ -17,7 +16,7 @@ extern uint16_t frameCounter;
 // Input and movement functions
 byte getInput();
 void updateActiveDirection(byte input);
-void updatePlayer(byte input);
+void updatePlayerPosition(byte input);
 bool movePlayer(byte allowedMoves);
 void perimeterMove();
 void drawMove(bool isFastMove);
