@@ -205,8 +205,8 @@ void updateCanDraw() {
     if (!(allowedMoves & dirs[d])) continue; // already blocked
 
     vertex nextPos = p.position;
-    nextPos.x = dx[d];
-    nextPos.y = dy[d];
+    nextPos.x += dx[d];
+    nextPos.y += dy[d];
 
     // If next position is on the perimeter, always allow (don't block re-entry)
     bool onPerim = false;
@@ -237,8 +237,8 @@ void updateCanDraw() {
     // Check 2 steps ahead against trail segments (prevents drawing adjacent to trail)
     if (!blocked) {
       vertex nextPos2 = nextPos;
-      nextPos2.x = dx[d];
-      nextPos2.y = dy[d];
+      nextPos2.x += dx[d];
+      nextPos2.y += dy[d];
       for (int i = 0; i < p.trailCount - 1; i++) {
         if (pointOnSegment(nextPos2, p.trail[i], p.trail[i + 1])) {
           blocked = true;
