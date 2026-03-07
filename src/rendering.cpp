@@ -219,7 +219,7 @@ void scanlineFill(vertex* verts, int count, bool fast) {
     int minY = min(v1.gety(), v2.gety());
     int maxY = max(v1.gety(), v2.gety());
     if (y < minY || y >= maxY) continue;
-    if (v1.gety() == v2.gety()) pointMult += abs(v2.getx() - v1.getx()); continue; // Skip horizontal edges
+    if (v1.gety() == v2.gety()) continue; // Skip horizontal edges
     int x = (v1.getx() == v2.getx()) ? v1.getx()
       : v1.getx() + (y - v1.gety()) * (v2.getx() - v1.getx()) / (v2.gety() - v1.gety());
     if (xCount < (int)(sizeof(xs) / sizeof(xs[0]))) xs[xCount++] = x;
@@ -245,7 +245,7 @@ void scanlineFill(vertex* verts, int count, bool fast) {
 
   // Advance to next scanline for next frame; when finished, finalize
   fillAnimationFrame++;
-  pointCounter(pointMult, fast);
+  //pointCounter(pointMult, fast);
   if (fillAnimationFrame >= HEIGHT) {
     gameState = PLAYING;
     fillAnimationFrame = 0;

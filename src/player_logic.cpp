@@ -204,9 +204,14 @@ void updateCanDraw() {
   for (int d = 0; d < 4; d++) {
     if (!(allowedMoves & dirs[d])) continue; // already blocked
 
-    vertex nextPos = p.position;
-    nextPos.addx(dx[d]);
-    nextPos.addy(dy[d]);
+    // Compute lookahead using signed int to avoid byte wrap
+    int nx = p.position.getx() + dx[d];
+    int ny = p.position.gety() + dy[d];
+    if (nx < 0 || nx >= WIDTH || ny < 0 || ny >= HEIGHT) {
+      allowedMoves &= ~dirs[d];
+      continue;
+    }
+    vertex nextPos(nx, ny);
 
     // If next position is on the perimeter, always allow (don't block re-entry)
     bool onPerim = false;
@@ -236,18 +241,22 @@ void updateCanDraw() {
 
     // Check 2 steps ahead against trail segments (prevents drawing adjacent to trail)
     if (!blocked) {
-      vertex nextPos2 = nextPos;
-      nextPos2.addx(dx[d]);
-      nextPos2.addy(dy[d]);
-      for (int i = 0; i < p.trailCount - 1; i++) {
-        if (pointOnSegment(nextPos2, p.trail[i], p.trail[i + 1])) {
-          blocked = true;
-          break;
+      int nx2 = nx + dx[d];
+      int ny2 = ny + dy[d];
+      if (nx2 < 0 || nx2 >= WIDTH || ny2 < 0 || ny2 >= HEIGHT) {
+        blocked = true;
+      } else {
+        vertex nextPos2(nx2, ny2);
+        for (int i = 0; i < p.trailCount - 1; i++) {
+          if (pointOnSegment(nextPos2, p.trail[i], p.trail[i + 1])) {
+            blocked = true;
+            break;
+          }
         }
-      }
-      if (!blocked && p.trailCount > 0) {
-        if (pointOnSegment(nextPos2, p.trail[p.trailCount - 1], p.position)) {
-          blocked = true;
+        if (!blocked && p.trailCount > 0) {
+          if (pointOnSegment(nextPos2, p.trail[p.trailCount - 1], p.position)) {
+            blocked = true;
+          }
         }
       }
     }

@@ -12,14 +12,6 @@
 
 // Global game objects
 long score = 0;
-int highScores[6] = {
-    EEPROM.read(EEPROM_HIGH_SCORE_ADDR),
-    EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 1),
-    EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 2),
-    EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 3),
-    EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 4),
-    EEPROM.read(EEPROM_HIGH_SCORE_ADDR + 5)
-};
 player p;
 perimeter perim;
 qix q;
@@ -39,16 +31,17 @@ namespace {
   using FrameHandler = void (*)();
 
   void tickMenuFrame() {
-    // create menu sprite
     byte input = getInput();
     arduboy.setCursor(0, 0);
     arduboy.setTextSize(1);
     arduboy.print(F("Qixboy"));
-    // temp
     if (input) {
+      arduboy.clear();
+      respawn();
+      drawPerimeter();
+      p.tickFrame();
       gameState = PLAYING;
     }
-    // drawMenu();
   }
 
   void tickPlayingFrame() {
@@ -58,6 +51,8 @@ namespace {
     byte input = getInput();
     updateActiveDirection(input);
     updatePlayer(input);
+    saveBackground(p.position);
+    drawPlayer();
 
     if (!fz.active) {
       if (fz.hasResumePos && p.framesSinceMove <= 5 && (p.allowedMoves & 0x30)) {
@@ -85,8 +80,6 @@ namespace {
       return;
     }
 
-    saveBackground(p.position);
-    drawPlayer();
     // Draw Qix (history + current line) only when q indicates render ready
     if (arduboy.everyXFrames(q.renderInterval)) {
       drawQix();
@@ -130,14 +123,6 @@ void setup() {
     arduboy.boot();
     arduboy.setFrameRate(60);
     arduboy.clear();
-    respawn();
-    drawPerimeter();
-    updateCanMove();
-    saveBackground(p.position);
-    drawPlayer();
-    drawQix();
-    // Advance player's idle/movement frame counter every loop iteration
-    p.tickFrame();
     arduboy.display();
 }
 

@@ -1,7 +1,7 @@
 #ifndef ENTITIES_H
 #define ENTITIES_H
 
-#include <Arduino.h>
+#include <Arduboy2.h>
 #include "config.h"
 #include "types.h"
 #include "geometry.h"
@@ -223,21 +223,8 @@ class qix {
     const int maxSpeed = 3;
     int moveTick = 0;
     int moveInterval = 2;
-
-    // Rendering throttling: how often the qix is actually redrawn
-    // (movement can still update more frequently). Adjustable.
-    int renderTick = 0;
+    
     int renderInterval = 4; // draw every N frames
-
-    // Return true when it's time to render (increments internal tick)
-    inline bool shouldRender() {
-      renderTick++;
-      if (renderTick >= renderInterval) {
-        renderTick = 0;
-        return true;
-      }
-      return false;
-    }
 
     qix() {
       p1 = vertex(WIDTH / 3, HEIGHT / 3);
