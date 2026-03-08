@@ -1,7 +1,7 @@
 #ifndef DEBUG_H
 #define DEBUG_H
 
-#include "Arduboy2.h"
+#include <Arduboy2.h>
 
 extern Arduboy2 arduboy;
 
@@ -20,40 +20,40 @@ class Debug
 {
 public:
   debugType set = INFO; 
-  void critical(const char *message, int value = NULL, debugType messageType = ERROR)
+  void critical(const char *message, uint32_t *value = nullptr, debugType messageType = ERROR)
   {
     Serial.println("CRITICAL:");
     Serial.println(message);
-    if (value != NULL)
+    if (value != nullptr)
     {
       Serial.print("Value: ");
-      Serial.println(value);
+      Serial.println(*value);
     }
     while (true)
     {
       arduboy.clear();
       arduboy.setCursor(0, 0);
       arduboy.print(message);
-      if (value != NULL)
+      if (value != nullptr)
       {
         arduboy.setCursor(0, 10);
         arduboy.print("Value: ");
-        arduboy.print(value);
+        arduboy.print(*value);
       }
       arduboy.display();
     }
   }
-  void raise(const char *message, int value = NULL, debugType messageType = WARNING)
+  void raise(const char *message, uint32_t *value = nullptr, debugType messageType = WARNING)
   {   
     if (set != NONE && set >= messageType)
     {
       Serial.println("################################");
       Serial.println("RAISE:");
       Serial.println(message);
-      if (value != NULL)
+      if (value != nullptr)
       {
         Serial.print("Value: ");
-        Serial.println(value);
+        Serial.println(*value);
       }
       Serial.println("################################");
 
@@ -68,7 +68,7 @@ public:
       Serial.println(message);
     }
   }
-  void log(const char *type, int value, debugType messageType = INFO)
+  void log(const char *type, uint32_t value, debugType messageType = INFO)
   {
     if (set != NONE && set >= messageType)
     {

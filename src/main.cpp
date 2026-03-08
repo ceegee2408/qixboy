@@ -1,10 +1,10 @@
 #include <Arduboy2.h>
-#include <vertex.h>
-#include <debug.h>
+#include "header.h"
 #define MAX_VERTICES 128
 #define DEBUG DETAILED
 #define SLOW_DRAW_SPEED 2
 #define FAST_DRAW_SPEED 3
+#define RESPAWN true
 
 Arduboy2 arduboy;
 
@@ -63,55 +63,83 @@ public:
   }
 };
 Perimeter perimeter;
+
 class Player
 {
 public:
   vertex position;
   vertex lastPosition;
-  byte valid_moves;  // bitfield for valid moves, bit 0 = up, bit 1 = right, bit 2 = down, bit 3 = left, last 4 bits may be for previous direction if needed
+  direction valid_moves;  // bitfield for valid moves, bit 0 = up, bit 1 = right, bit 2 = down, bit 3 = left, last 4 bits may be for previous direction if needed
   byte inputs;      // same as valid_moves with bit 5 = A, bit 6 = B
   byte lives;
   byte draw; // 0 = not drawing, 1 = slow draw, 2 = fast draw
+  byte perimeterIndex[2]; 
+  long points;
+  handleRender render = handleRender(playerMask, true);
   Player()
   {
-    position = vertex(WIDTH / 2, HEIGHT - 1);
-    lastPosition = position;
-    lives = 3;
-    draw = 0;
-    valid_moves = 0;
+    restartPlayer();
+    vertex playerRenderOffset = (position - vertex(3, 3));
+    spriteManager.add(&render, playerRenderOffset);
   }
   void getPlayerInput() {
     arduboy.pollButtons();
+    uint32_t debugInputs = 0;
     if (arduboy.pressed(UP_BUTTON)) {
       inputs |= 0b000001;
+      debugInputs += 1;
     }
     if (arduboy.pressed(RIGHT_BUTTON)) {
       inputs |= 0b000010;
+      debugInputs += 10;
     }
     if (arduboy.pressed(DOWN_BUTTON)) {
       inputs |= 0b000100;
+      debugInputs += 100;
     }
     if (arduboy.pressed(LEFT_BUTTON)) {
       inputs |= 0b001000;
+      debugInputs += 1000;
     }
     if (arduboy.pressed(A_BUTTON)) {
       inputs |= 0b010000;
+      debugInputs += 10000;
     }
     if (arduboy.pressed(B_BUTTON)) {
       inputs |= 0b100000;
+      debugInputs += 100000;
     }
+    debug.log("DEBUG_INPUTS", debugInputs, DETAILED); 
   }
-  void restartPlayer()
+  void restartPlayer(bool respawn = false)
   {
     debug.log("RUN", "restartPlayer", INFO);
     position = vertex(WIDTH / 2, HEIGHT - 1);
     lastPosition = position;
-    lives = 3;
+    lives = (respawn) ? lives : 3;
+    points = (respawn) ? points : 0;
     draw = 0;
     valid_moves = 0;
+    perimeterIndex[0] = 1;
+    perimeterIndex[1] = 2;
+  }
+  void movePlayer() {
+    direction lastDirection = directionFromVertexToVertex(lastPosition, position);
+    direction inputDirection = direction(inputs & 0b00001111);
+    if (inputDirection & lastDirection) {
+      inputDirection = inputDirection.dir ^ lastDirection.dir; 
+      // ignore same direction inputs if new input
+    }
+    // reduce to one input
+    if (inputDirection & UP) inputDirection == UP;
+    else if (inputDirection & RIGHT) inputDirection == RIGHT;
+    else if (inputDirection & DOWN) inputDirection == DOWN;
+    else if (inputDirection & LEFT) inputDirection == LEFT;
+    
   }
 };
 Player player;
+
 class Qix
 {
   vertex points[2];
@@ -120,6 +148,8 @@ class Qix
 
 class Sparx
 {
+  public:
+    vertex position;
 };
 
 class Fuze
@@ -134,12 +164,16 @@ public:
   void init()
   {
     debug.log("RUN", "Game.init", INFO);
+    restart();
+    perimeter.draw();
+    
+  }
+  void restart(bool respawn = false){
     perimeter.restartPerimeter();
-    player.restartPlayer();
+    player.restartPlayer(respawn);
     // qix.restartQix();
     // sparx.restartSparx();
     // fuze.restartFuze();
-    state = START_SCREEN;
   }
   void update()
   {
@@ -167,10 +201,24 @@ public:
   }
 
   void drawStartScreen() {
-
+    arduboy.drawBitmap(0, 0, menuBitmap, 128, 64, WHITE);
+    if(arduboy.everyXFrames(30)) {
+      arduboy.drawBitmap(39, 59, insertCoinBitmap, 50, 5, INVERT);
+    }
+    arduboy.pollButtons();
+    if(player.inputs){
+      arduboy.clear();
+      init();
+      state = PLAYING;
+    }
   }
   void drawPlaying() {
+    spriteManager.restore();
+    
 
+
+
+    spriteManager.draw();
   }
   void drawFillAnimation(){
 
@@ -187,20 +235,20 @@ Game game;
 
 void setup()
 { 
-  debug.set = DEBUG;
+  //init arduboy
   arduboy.boot();
   arduboy.flashlight();
   arduboy.setFrameRate(60);
+  //init serial
   Serial.begin(9600);
-  game.init();
+  debug.set = DEBUG;
+  //init game
+  game.state = START_SCREEN;
 }
 
 void loop()
 {
-  if (!arduboy.nextFrame())
-  {
-    return;
-  }
+  if (!arduboy.nextFrame()) return;
   game.update();
   arduboy.display();
 }

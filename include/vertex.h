@@ -31,6 +31,16 @@ bool operator!=(const vertex &v1, const vertex &v2)
         return !(v1 == v2);
 }
 
+vertex operator+(const vertex &v1, const vertex &v2)
+{
+        return vertex(v1.x + v2.x, v1.y + v2.y);
+}
+
+vertex operator-(const vertex &v1, const vertex &v2)
+{
+        return vertex(v1.x - v2.x, v1.y - v2.y);
+}
+
 bool winding(const vertex &v1, const vertex &v2, const vertex &v3)
 {
         return (v2.x - v1.x) * (v3.y - v1.y) - (v2.y - v1.y) * (v3.x - v1.x) > 0;
@@ -68,6 +78,5 @@ void Debug::printVertex(const vertex &v)
     Serial.print(v.y);
     Serial.println(")");
 }
-
 
 #endif
