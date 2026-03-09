@@ -31,23 +31,29 @@ public:
 
     void drawMask(vertex position)
     {
-        if (position.x >= WIDTH || position.y >= HEIGHT)
+        int sx = (int8_t)position.x;
+        int sy = (int8_t)position.y;
+        if (sy >= HEIGHT || sx < -7 || sy < -7)
             return;
         byte *buf = arduboy.getBuffer();
-        for (byte i = 0; i < 8; i++)
+        byte iStart = (sy < 0) ? (byte)(-sy) : 0;
+        byte jStart = (sx < 0) ? (byte)(-sx) : 0;
+        for (byte i = iStart; i < 8; i++)
         {
-            if (position.y + i >= HEIGHT) break;
-            byte page = (position.y + i) / 8;
-            byte bit = 1 << ((position.y + i) % 8);
-            for (byte j = 0; j < 8; j++)
+            int screenY = sy + i;
+            if (screenY >= HEIGHT) break;
+            byte page = (byte)screenY / 8;
+            byte bit = 1 << ((byte)screenY % 8);
+            for (byte j = jStart; j < 8; j++)
             {
-                if (position.x + j >= WIDTH) break;
+                int screenX = sx + j;
+                if (screenX >= WIDTH) break;
                 if (mask[i] & (0x80 >> j))
                 {
                     if (invert)
-                        buf[page * WIDTH + (position.x + j)] ^= bit;
+                        buf[page * WIDTH + screenX] ^= bit;
                     else
-                        buf[page * WIDTH + (position.x + j)] |= bit;
+                        buf[page * WIDTH + screenX] |= bit;
                 }
             }
         }
@@ -56,18 +62,24 @@ public:
     void setBackground(vertex position)
     {
         bgPosition = position;
-        byte page = position.y / 8;
-        byte yOffset = position.y % 8;
-        if (page >= HEIGHT / 8)
+        int sx = (int8_t)position.x;
+        int sy = (int8_t)position.y;
+        if (sy >= HEIGHT || sx < -7 || sy < -7)
             return;
         byte *buf = arduboy.getBuffer();
+        byte topRow = (sy < 0) ? 0 : (byte)sy;
+        byte botRow = (byte)((sy + 7 < HEIGHT) ? sy + 7 : HEIGHT - 1);
+        byte page = topRow / 8;
+        byte lastPage = botRow / 8;
+        bool hasLowerPage = (lastPage > page);
         for (byte i = 0; i < 8; i++)
         {
-            if (position.x + i >= WIDTH)
-                break;
-            background[i] = buf[page * WIDTH + (position.x + i)];
-            if (yOffset > 0 && page + 1 < HEIGHT / 8)
-                backgroundLower[i] = buf[(page + 1) * WIDTH + (position.x + i)];
+            int screenX = sx + i;
+            if (screenX < 0) continue;
+            if (screenX >= WIDTH) break;
+            background[i] = buf[page * WIDTH + screenX];
+            if (hasLowerPage)
+                backgroundLower[i] = buf[lastPage * WIDTH + screenX];
         }
         bgSet = true;
     }
@@ -75,18 +87,24 @@ public:
     void restoreBackground()
     {
         if (!bgSet) return;
-        byte page = bgPosition.y / 8;
-        byte yOffset = bgPosition.y % 8;
-        if (page >= HEIGHT / 8)
+        int sx = (int8_t)bgPosition.x;
+        int sy = (int8_t)bgPosition.y;
+        if (sy >= HEIGHT || sx < -7 || sy < -7)
             return;
+        byte topRow = (sy < 0) ? 0 : (byte)sy;
+        byte botRow = (byte)((sy + 7 < HEIGHT) ? sy + 7 : HEIGHT - 1);
+        byte page = topRow / 8;
+        byte lastPage = botRow / 8;
+        bool hasLowerPage = (lastPage > page);
         byte *buf = arduboy.getBuffer();
         for (byte i = 0; i < 8; i++)
         {
-            if (bgPosition.x + i >= WIDTH)
-                break;
-            buf[page * WIDTH + (bgPosition.x + i)] = background[i];
-            if (yOffset > 0 && page + 1 < HEIGHT / 8)
-                buf[(page + 1) * WIDTH + (bgPosition.x + i)] = backgroundLower[i];
+            int screenX = sx + i;
+            if (screenX < 0) continue;
+            if (screenX >= WIDTH) break;
+            buf[page * WIDTH + screenX] = background[i];
+            if (hasLowerPage)
+                buf[lastPage * WIDTH + screenX] = backgroundLower[i];
         }
     }
 

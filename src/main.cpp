@@ -1,9 +1,10 @@
 #include <Arduboy2.h>
 #include "header.h"
 #define MAX_VERTICES 128
-#define DEBUG DETAILED
-#define SLOW_DRAW_SPEED 2
-#define FAST_DRAW_SPEED 3
+#define DEBUG INFO
+#define SLOW_DRAW_SPEED 3
+#define FAST_DRAW_SPEED 2
+#define NORMAL_SPEED FAST_DRAW_SPEED
 #define RESPAWN true
 
 Arduboy2 arduboy;
@@ -69,48 +70,97 @@ class Player
 public:
   vertex position;
   vertex lastPosition;
-  direction valid_moves;  // bitfield for valid moves, bit 0 = up, bit 1 = right, bit 2 = down, bit 3 = left, last 4 bits may be for previous direction if needed
   byte inputs;      // same as valid_moves with bit 5 = A, bit 6 = B
   byte lives;
   byte draw; // 0 = not drawing, 1 = slow draw, 2 = fast draw
   byte perimeterIndex[2]; 
   long points;
   handleRender render = handleRender(playerMask, true);
+
   Player()
   {
     restartPlayer();
-    vertex playerRenderOffset = (position - vertex(3, 3));
+    vertex playerRenderOffset = (position - vertex(2, 2));
     spriteManager.add(&render, playerRenderOffset);
   }
-  void getPlayerInput() {
-    arduboy.pollButtons();
-    uint32_t debugInputs = 0;
-    if (arduboy.pressed(UP_BUTTON)) {
-      inputs |= 0b000001;
-      debugInputs += 1;
+
+  byte filterPlayerInput(uint8_t rawButtons) {
+    // remap from Arduboy hardware bits to Direction constants
+    byte directional = 0;
+    if (rawButtons & UP_BUTTON)    directional |= Direction::UP;
+    if (rawButtons & DOWN_BUTTON)  directional |= Direction::DOWN;
+    if (rawButtons & LEFT_BUTTON)  directional |= Direction::LEFT;
+    if (rawButtons & RIGHT_BUTTON) directional |= Direction::RIGHT;
+
+    byte newlyPressed = directional & ~Direction::fromVertices(lastPosition, position);
+    byte result = 0;
+    if (newlyPressed) {
+        // newly pressed direction takes immediate priority
+        if      (newlyPressed & Direction::UP)    result = Direction::UP;
+        else if (newlyPressed & Direction::RIGHT)  result = Direction::RIGHT;
+        else if (newlyPressed & Direction::DOWN)   result = Direction::DOWN;
+        else if (newlyPressed & Direction::LEFT)   result = Direction::LEFT;
+    } else {
+        // active direction was released, fall back to whatever is still held
+        if      (directional & Direction::UP)    result = Direction::UP;
+        else if (directional & Direction::RIGHT)  result = Direction::RIGHT;
+        else if (directional & Direction::DOWN)   result = Direction::DOWN;
+        else if (directional & Direction::LEFT)   result = Direction::LEFT;
     }
-    if (arduboy.pressed(RIGHT_BUTTON)) {
-      inputs |= 0b000010;
-      debugInputs += 10;
-    }
-    if (arduboy.pressed(DOWN_BUTTON)) {
-      inputs |= 0b000100;
-      debugInputs += 100;
-    }
-    if (arduboy.pressed(LEFT_BUTTON)) {
-      inputs |= 0b001000;
-      debugInputs += 1000;
-    }
-    if (arduboy.pressed(A_BUTTON)) {
-      inputs |= 0b010000;
-      debugInputs += 10000;
-    }
-    if (arduboy.pressed(B_BUTTON)) {
-      inputs |= 0b100000;
-      debugInputs += 100000;
-    }
-    debug.log("DEBUG_INPUTS", debugInputs, DETAILED); 
+
+    // combine single direction with A/B
+    if (rawButtons & A_BUTTON) result |= Direction::FAST;
+    else if (rawButtons & B_BUTTON) result |= Direction::SLOW;
+    return result;
   }
+
+  void move() {
+    byte filteredInput = filterPlayerInput(arduboy.buttonsState());
+    byte allowed = 0;
+    bool onCorner = (perimeterIndex[0] == perimeterIndex[1]) ? 1 : 0;
+    if (draw) {
+      allowed = moveDraw(filteredInput);
+    } else {
+      if (filteredInput & (Direction::FAST | Direction::SLOW)) {
+        // if trying to draw, also allow movement towards inside of perimeter
+        // inward is the left-hand normal of the travel direction (clockwise perimeter)
+        byte edgeDir = Direction::fromVertices(perimeter.vertices[perimeterIndex[0]], perimeter.vertices[perimeterIndex[1]]);
+        if      (edgeDir == Direction::DOWN)  allowed |= Direction::RIGHT;
+        else if (edgeDir == Direction::RIGHT) allowed |= Direction::UP;
+        else if (edgeDir == Direction::UP)    allowed |= Direction::LEFT;
+        else if (edgeDir == Direction::LEFT)  allowed |= Direction::DOWN;
+      }
+      if (onCorner) {
+        // if on corner, only move towards the actual adjacent vertices
+        byte nextIdx = (perimeterIndex[1] + 1) % perimeter.numVertices;
+        byte prevIdx = (perimeterIndex[0] - 1 + perimeter.numVertices) % perimeter.numVertices;
+        allowed |= (Direction::fromVertices(position, perimeter.vertices[nextIdx]) |
+                   Direction::fromVertices(position, perimeter.vertices[prevIdx]));
+      } else {
+        // if on edge, only move along edge
+        allowed |= Direction::fromVertices(perimeter.vertices[perimeterIndex[0]], perimeter.vertices[perimeterIndex[1]]);
+        allowed |= Direction::reverse(allowed);
+      }
+    }
+
+    debug.log("INPUT", int(filteredInput), DETAILED);
+    debug.log("ALLOWED", int(allowed), DETAILED);
+
+    lastPosition = position;
+    moveVertex(position, allowed & filteredInput);
+    spriteManager.update(&render, position - vertex(2, 2));
+    
+    updateIndex(onCorner);
+                
+    if (position != lastPosition) {
+      debug.log("MOVED TO", position, INFO);
+    }
+  }
+
+  byte moveDraw(byte imp) {
+    return 0;
+  }
+
   void restartPlayer(bool respawn = false)
   {
     debug.log("RUN", "restartPlayer", INFO);
@@ -119,24 +169,40 @@ public:
     lives = (respawn) ? lives : 3;
     points = (respawn) ? points : 0;
     draw = 0;
-    valid_moves = 0;
     perimeterIndex[0] = 1;
     perimeterIndex[1] = 2;
   }
-  void movePlayer() {
-    direction lastDirection = directionFromVertexToVertex(lastPosition, position);
-    direction inputDirection = direction(inputs & 0b00001111);
-    if (inputDirection & lastDirection) {
-      inputDirection = inputDirection.dir ^ lastDirection.dir; 
-      // ignore same direction inputs if new input
+
+  void updateIndex(bool onCorner) {
+    if (lastPosition == position) {
+      // no movement this frame, UPDATE FUZE COUNTER
+      return;
     }
-    // reduce to one input
-    if (inputDirection & UP) inputDirection == UP;
-    else if (inputDirection & RIGHT) inputDirection == RIGHT;
-    else if (inputDirection & DOWN) inputDirection == DOWN;
-    else if (inputDirection & LEFT) inputDirection == LEFT;
-    
+    if (draw) return;
+    if (!onCorner) {
+      // if was on edge, just update the vertex that was left behind
+      if (position == perimeter.vertices[perimeterIndex[0]]) {
+        perimeterIndex[1] = perimeterIndex[0];
+      } else if (position == perimeter.vertices[perimeterIndex[1]]) {
+        perimeterIndex[0] = perimeterIndex[1];
+      }
+    } else {
+      // was on corner idx; determine which adjacent edge the player stepped onto
+      byte idx = perimeterIndex[0];
+      byte nextIdx = (idx + 1) % perimeter.numVertices;
+      byte prevIdx = (idx - 1 + perimeter.numVertices) % perimeter.numVertices;
+      if (along(position, perimeter.vertices[idx], perimeter.vertices[nextIdx])) {
+        perimeterIndex[0] = idx;
+        perimeterIndex[1] = nextIdx;
+        if (position == perimeter.vertices[nextIdx]) perimeterIndex[0] = nextIdx; // reached next corner
+      } else if (along(position, perimeter.vertices[prevIdx], perimeter.vertices[idx])) {
+        perimeterIndex[0] = prevIdx;
+        perimeterIndex[1] = idx;
+        if (position == perimeter.vertices[prevIdx]) perimeterIndex[1] = prevIdx; // reached prev corner
+      }
+    }
   }
+
 };
 Player player;
 
@@ -145,16 +211,25 @@ class Qix
   vertex points[2];
   vertex velocities[2];
 };
+Qix qix;
 
 class Sparx
 {
   public:
     vertex position;
+    bool ccw;
+    byte perimeterIndex[2];
 };
+Sparx sparx[4];
 
 class Fuze
 {
+  public:
+    vertex position;
+    byte trailIndex[2];
+    byte framesPlayerStationary = 0;
 };
+Fuze fuze;
 
 class Game
 {
@@ -179,7 +254,7 @@ public:
   {
     debug.log("RUN", "Game.update", DETAILED);
     debug.log("STATE", int(state), DETAILED);
-    player.getPlayerInput();
+    
     switch (state)
     {
     case START_SCREEN:
@@ -206,7 +281,7 @@ public:
       arduboy.drawBitmap(39, 59, insertCoinBitmap, 50, 5, INVERT);
     }
     arduboy.pollButtons();
-    if(player.inputs){
+    if(arduboy.pressed(A_BUTTON) || arduboy.pressed(B_BUTTON)) {
       arduboy.clear();
       init();
       state = PLAYING;
@@ -215,6 +290,7 @@ public:
   void drawPlaying() {
     spriteManager.restore();
     
+    if (arduboy.everyXFrames(NORMAL_SPEED)) player.move();
 
 
 
@@ -230,7 +306,6 @@ public:
 
   }
 };
-
 Game game;
 
 void setup()
@@ -244,6 +319,7 @@ void setup()
   debug.set = DEBUG;
   //init game
   game.state = START_SCREEN;
+  arduboy.waitNoButtons();
 }
 
 void loop()
