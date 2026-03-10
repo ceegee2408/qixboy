@@ -11,9 +11,8 @@ extern Arduboy2 arduboy;
 class handleRender
 {
 public:
-    byte mask[8];
+    const byte *mask;
     byte background[8];
-    byte backgroundLower[8];
     vertex bgPosition;
     bool bgSet = false;
     bool invert = false;
@@ -26,7 +25,7 @@ public:
 
     void setMask(const byte *newMask)
     {
-        memcpy_P(mask, newMask, 8);
+        mask = newMask;
     }
 
     void drawMask(vertex position)
@@ -48,7 +47,7 @@ public:
             {
                 int screenX = sx + j;
                 if (screenX >= WIDTH) break;
-                if (mask[i] & (0x80 >> j))
+                if (pgm_read_byte(&mask[i]) & (0x80 >> j))
                 {
                     if (invert)
                         buf[page * WIDTH + screenX] ^= bit;
@@ -59,65 +58,47 @@ public:
         }
     }
 
-    void setBackground(vertex position)
-    {
+    void setBackground(vertex position) {
         bgPosition = position;
         int sx = (int8_t)position.x;
         int sy = (int8_t)position.y;
-        if (sy >= HEIGHT || sx < -7 || sy < -7)
-            return;
+        if (sy >= HEIGHT || sy < -7 || sx >= WIDTH || sx < -7) return;
         byte *buf = arduboy.getBuffer();
-        byte topRow = (sy < 0) ? 0 : (byte)sy;
-        byte botRow = (byte)((sy + 7 < HEIGHT) ? sy + 7 : HEIGHT - 1);
-        byte page = topRow / 8;
-        byte lastPage = botRow / 8;
-        bool hasLowerPage = (lastPage > page);
-        for (byte i = 0; i < 8; i++)
-        {
+        byte offset = (byte)((sy % 8 + 8) % 8);
+        int page = sy >> 3;  // arithmetic right shift = floor division (fixes negative sy)
+        for (byte i = 0; i < 8; i++) {
             int screenX = sx + i;
-            if (screenX < 0) continue;
-            if (screenX >= WIDTH) break;
-            background[i] = buf[page * WIDTH + screenX];
-            if (hasLowerPage)
-                backgroundLower[i] = buf[lastPage * WIDTH + screenX];
+            if (screenX < 0 || screenX >= WIDTH) continue;
+            byte top = (page >= 0) ? buf[page * WIDTH + screenX] : 0;
+            byte bot = (page + 1 >= 0 && page + 1 < HEIGHT / 8)
+                    ? buf[(page + 1) * WIDTH + screenX] : 0;
+            background[i] = (offset == 0) ? top : (top >> offset) | (bot << (8 - offset));
         }
         bgSet = true;
     }
 
-    void restoreBackground()
-    {
+    void restoreBackground() {
         if (!bgSet) return;
         int sx = (int8_t)bgPosition.x;
         int sy = (int8_t)bgPosition.y;
-        if (sy >= HEIGHT || sx < -7 || sy < -7)
-            return;
-        byte topRow = (sy < 0) ? 0 : (byte)sy;
-        byte botRow = (byte)((sy + 7 < HEIGHT) ? sy + 7 : HEIGHT - 1);
-        byte page = topRow / 8;
-        byte lastPage = botRow / 8;
-        bool hasLowerPage = (lastPage > page);
+        if (sy >= HEIGHT || sy < -7 || sx >= WIDTH || sx < -7) return;
         byte *buf = arduboy.getBuffer();
-        for (byte i = 0; i < 8; i++)
-        {
+        byte offset = (byte)((sy % 8 + 8) % 8);
+        int page = sy >> 3;  // arithmetic right shift = floor division (fixes negative sy)
+        byte mask_top = (offset == 0) ? 0xFF : (byte)(0xFF << offset);
+        byte mask_bot = (offset == 0) ? 0x00 : (byte)(0xFF >> (8 - offset));
+        for (byte i = 0; i < 8; i++) {
             int screenX = sx + i;
-            if (screenX < 0) continue;
-            if (screenX >= WIDTH) break;
-            buf[page * WIDTH + screenX] = background[i];
-            if (hasLowerPage)
-                buf[lastPage * WIDTH + screenX] = backgroundLower[i];
+            if (screenX < 0 || screenX >= WIDTH) continue;
+            if (page >= 0)
+                buf[page * WIDTH + screenX] =
+                    (buf[page * WIDTH + screenX] & ~mask_top) |
+                    (offset == 0 ? background[i] : (background[i] << offset));
+            if (page + 1 >= 0 && page + 1 < HEIGHT / 8 && mask_bot != 0)
+                buf[(page + 1) * WIDTH + screenX] =
+                    (buf[(page + 1) * WIDTH + screenX] & ~mask_bot) |
+                    (background[i] >> (8 - offset));
         }
-    }
-
-    void restoreSetDraw(vertex position)
-    {
-        if (!bgSet)
-        {
-            setBackground(position);
-            bgSet = true;
-        }
-        restoreBackground();
-        setBackground(position);
-        drawMask(position);
     }
 };
 

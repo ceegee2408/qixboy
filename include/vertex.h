@@ -46,6 +46,16 @@ bool winding(const vertex &v1, const vertex &v2, const vertex &v3)
     return (v2.x - v1.x) * (v3.y - v1.y) - (v2.y - v1.y) * (v3.x - v1.x) > 0;
 }
 
+bool isUShape(const vertex &v0, const vertex &v1, const vertex &v2, const vertex &v3) {
+    int dx = v2.x - v1.x;
+    int dy = v2.y - v1.y;
+    if (abs(dx - dy) > 2) return false;
+    bool w1 = winding(v0, v1, v2);
+    bool w2 = winding(v1, v2, v3);
+    bool w3 = winding(v0, v1, v3);
+    return (w1 == w2) && (w1 != w3);
+}
+
 bool intersecting(const vertex &v1, const vertex &v2, const vertex &v3, const vertex &v4)
 {
     int d1x = v2.x - v1.x, d1y = v2.y - v1.y;
