@@ -3,7 +3,7 @@
 
 Arduboy2 arduboy;
 
-enum gamestate
+enum states
 {
   START_SCREEN,
   PLAYING,
@@ -12,16 +12,29 @@ enum gamestate
   GAME_OVER
 };
 
+class Qix
+{
+public:
+  vertex position;  // current position for collision/fill detection
+  vertex points[2]; // line endpoints for rendering
+  vertex velocities[2];
+
+  Qix()
+  {
+    // initialize to center of screen for now
+    position = vertex(WIDTH / 2, HEIGHT / 2);
+  }
+};
+
 class Player
 {
 public:
   vertex position;
   vertex lastPosition;
-  byte inputs; // same as valid_moves with bit 5 = A, bit 6 = B
   byte lives;
-  byte draw; // 0 = not drawing, 1 = slow draw, 2 = fast draw
-  index perimeterIndex;
+  byte draw = 0; // 0 = not drawing, 1 = slow draw, 2 = fast draw
   long points;
+  byte prevDirectional;
   handleRender render = handleRender(playerMask, true);
 
   Player()
@@ -43,12 +56,18 @@ public:
       directional |= Direction::LEFT;
     if (rawButtons & RIGHT_BUTTON)
       directional |= Direction::RIGHT;
+    if (rawButtons & A_BUTTON)
+      directional |= Direction::FAST;
+    if (rawButtons & B_BUTTON)
+      directional |= Direction::SLOW;
 
-    byte newlyPressed = directional & ~Direction::fromVertices(lastPosition, position);
+    // detect truly newly pressed buttons (pressed this frame but not last frame)
+    byte newlyPressed = directional & ~prevDirectional;
     byte result = 0;
+
     if (newlyPressed)
     {
-      // newly pressed direction takes immediate priority
+      // newly pressed direction takes immediate priority (only one direction)
       if (newlyPressed & Direction::UP)
         result = Direction::UP;
       else if (newlyPressed & Direction::RIGHT)
@@ -57,134 +76,48 @@ public:
         result = Direction::DOWN;
       else if (newlyPressed & Direction::LEFT)
         result = Direction::LEFT;
+
+      if (newlyPressed & Direction::FAST)
+        result |= Direction::FAST;
+      else if (newlyPressed & Direction::SLOW)
+        result |= Direction::SLOW;
     }
     else
     {
-      // active direction was released, fall back to whatever is still held
-      if (directional & Direction::UP)
-        result = Direction::UP;
-      else if (directional & Direction::RIGHT)
-        result = Direction::RIGHT;
-      else if (directional & Direction::DOWN)
-        result = Direction::DOWN;
-      else if (directional & Direction::LEFT)
-        result = Direction::LEFT;
-    }
+      // no new buttons, use previously active direction if still held
+      byte currentDirection = Direction::fromVertices(lastPosition, position);
+      if (directional & currentDirection)
+      {
+        result = currentDirection; // continue in same direction
+      }
+      else if (directional)
+      {
+        // current direction released, fall back to whatever is still held
+        if (directional & Direction::UP)
+          result = Direction::UP;
+        else if (directional & Direction::RIGHT)
+          result = Direction::RIGHT;
+        else if (directional & Direction::DOWN)
+          result = Direction::DOWN;
+        else if (directional & Direction::LEFT)
+          result = Direction::LEFT;
 
-    // combine single direction with A/B
-    if (rawButtons & A_BUTTON)
-      result |= Direction::FAST;
-    else if (rawButtons & B_BUTTON)
-      result |= Direction::SLOW;
+        if (directional & Direction::FAST)
+          result |= Direction::FAST;
+        else if (directional & Direction::SLOW)
+          result |= Direction::SLOW;
+      }
+    }
+    prevDirectional = directional;
     return result;
   }
-
-  void move()
+  
+  void move(byte allowedInput)
   {
-    byte filteredInput = filterPlayerInput(arduboy.buttonsState());
-    byte allowed = 0;
-    bool onCorner = (perimeterIndex.i1 == perimeterIndex.i2) ? 1 : 0;
-    if (draw)
-    {
-      if (perimeter.isVertexOnPerim(position))
-      {
-        perimeter.finishTrail();
-      }
-    }
-    if (draw)
-    {
-      // drawing conditions
-      allowed = moveDraw(filteredInput);
-    }
-    else
-    {
-      // perimeter conditions
-      if (filteredInput & (Direction::FAST | Direction::SLOW))
-      {
-        // allow drawing if A or B is held
-        byte edgeDir = Direction::fromVertices(perimeter.vertices[perimeterIndex.i1], perimeter.vertices[perimeterIndex.i2]);
-        allowed |= Direction::FAST | Direction::SLOW;
-        if (edgeDir == Direction::DOWN)
-          allowed |= Direction::RIGHT;
-        else if (edgeDir == Direction::RIGHT)
-          allowed |= Direction::UP;
-        else if (edgeDir == Direction::UP)
-          allowed |= Direction::LEFT;
-        else if (edgeDir == Direction::LEFT)
-          allowed |= Direction::DOWN;
-      }
-      if (onCorner)
-      {
-        // if on corner, only move towards the actual adjacent vertices
-        byte nextIdx = (perimeterIndex.i1 + 1) % perimeter.numPerimVertices;
-        byte prevIdx = (perimeterIndex.i2 - 1 + perimeter.numPerimVertices) % perimeter.numPerimVertices;
-        allowed |= (Direction::fromVertices(position, perimeter.vertices[nextIdx]) |
-                    Direction::fromVertices(position, perimeter.vertices[prevIdx]));
-      }
-      else
-      {
-        // if on edge, only move along edge
-        byte edgeDirs = Direction::fromVertices(perimeter.vertices[perimeterIndex.i1], perimeter.vertices[perimeterIndex.i2]);
-        allowed |= edgeDirs;
-        allowed |= Direction::reverse(edgeDirs);
-      }
-    }
-
-    debug.log("INPUT", int(filteredInput), DETAILED);
-    debug.log("ALLOWED", int(allowed), DETAILED);
-
     lastPosition = position;
-    moveVertex(position, allowed & filteredInput);
-    spriteManager.update(&render, position - vertex(2, 2));
-
-    if (draw)
-    {
-      if (position != lastPosition)
-      {
-        // updateDraw();
-        fuze.framesPlayerStationary = 0;
-      }
-      else
-      {
-        fuze.framesPlayerStationary++;
-        debug.log("PLAYER STATIONARY", fuze.framesPlayerStationary, DETAILED);
-      }
-    }
-    else
-    {
-      updateIndex(allowed & filteredInput, onCorner);
-    }
-  }
-
-  byte moveDraw(byte imp)
-  {
-    byte result = 0;
-    if (imp == 0)
-    {
-      return 0;
-    }
-    vertex nextPos = position;
-    moveVertex(nextPos, imp);
-    if (perimeter.isVertexOnTrail(nextPos))
-    {
-      return 0;
-    }
-    if (perimeter.trailLength() > 2 && isUShape(perimeter.trail(0), perimeter.trail(1), perimeter.trail(2), nextPos))
-    {
-      // prevent 1 pixel u-turns
-      debug.log("U-TURN PREVENTED", position);
-      return 0;
-    }
-    moveVertex(nextPos, imp); // lookahead to prevent side by side drawing
-    if (!perimeter.isVertexOnTrail(nextPos))
-    {
-      result = imp;
-      return result;
-    }
-    else
-    {
-      return 0;
-    }
+    moveVertex(position, allowedInput);
+    vertex playerRenderOffset = (position - vertex(2, 2));
+    spriteManager.update(&render, playerRenderOffset);
   }
 
   void restartPlayer(bool respawn = false)
@@ -195,84 +128,49 @@ public:
     lives = (respawn) ? lives : 3;
     points = (respawn) ? points : 0;
     draw = 0;
-    perimeterIndex.i2 = 1;
-    perimeterIndex.i1 = 2;
+    prevDirectional = 0;
   }
 
-  void updateIndex(byte direction, bool onCorner)
-  {
-    if (!perimeter.isVertexOnPerim(position))
-    {
-      // if player moved off perimeter
-      draw = true;
-      debug.log("Draw mode active", position);
-      return;
+  byte getMoveSpeed() {
+    byte moveSpeed = NORMAL_SPEED;
+    if(draw & 0){
+
     }
-    if (onCorner)
-    {
-      // was on corner idx, determine which edge the player stepped onto
-      byte nextIdx = (perimeterIndex.i1 + 1) % perimeter.numPerimVertices;
-      byte prevIdx = (perimeterIndex.i2 - 1 + perimeter.numPerimVertices) % perimeter.numPerimVertices;
-      if (position == perimeter.vertices[nextIdx])
-      {
-        perimeterIndex.i1 = nextIdx;
-      }
-      else if (position == perimeter.vertices[prevIdx])
-      {
-        perimeterIndex.i2 = prevIdx;
-      }
-    }
-    else
-    {
-      // if on edge, update if reached corner
-      if (position == perimeter.vertices[perimeterIndex.i2])
-      {
-        perimeterIndex.i1 = perimeterIndex.i2;
-      }
-      else if (position == perimeter.vertices[perimeterIndex.i1])
-      {
-        perimeterIndex.i2 = perimeterIndex.i1;
-      }
-    }
+    return; 
   }
 };
-Player player;
-
-class Qix
-{
-  vertex points[2];
-  vertex velocities[2];
-};
-Qix qix;
 
 class Sparx
 {
 public:
   vertex position;
   bool ccw;
-  index perimeterIndex;
 };
-Sparx sparx[4];
 
 class Fuze
 {
 public:
   vertex position;
-  index trailIndex;
   byte framesPlayerStationary = 0;
 };
-Fuze fuze;
 
 class Game
 {
 public:
-  gamestate state;
+  states state;
+  Perimeter perimeter;
+  Trail trail;
+  Player player;
+  Qix qix;
+  Fuze fuze;
+  Sparx sparx[4];
+
   Game() : state(START_SCREEN) {}
   void init()
   {
     debug.log("RUN", "Game.init", INFO);
     restart();
-    perimeter.drawPerim();
+    perimeter.draw();
   }
   void restart(bool respawn = false)
   {
@@ -286,7 +184,7 @@ public:
   {
     debug.log("RUN", "Game.update", DETAILED);
     debug.log("STATE", int(state), DETAILED);
-
+    arduboy.pollButtons();
     switch (state)
     {
     case START_SCREEN:
@@ -322,13 +220,38 @@ public:
       state = PLAYING;
     }
   }
+
+  // updates
+  void updatePlaying()
+  {
+    if (arduboy.everyXFrames(player.getMoveSpeed())) {
+      byte input = player.filterPlayerInput(arduboy.buttonsState());
+      bool drawInput = input & Direction::DRAWBUTTONS;
+      debug.log("INPUT", input, INFO);
+      byte allowed; 
+      if (player.draw) {
+        allowed = trail.getAllowedMoves(player.position, input);
+      } else {
+        allowed = perimeter.getAllowedMoves(player.position, drawInput);
+      }
+      debug.logBitmap("ALLOWED", allowed, INFO);
+      player.move(allowed & input);
+      if (drawInput && !perimeter.isVertexOnPerim(player.position) && !player.draw){
+        player.draw = (input & Direction::FAST) ? 2 : 1;
+        trail.beginTrail(player.lastPosition);
+      }
+      if (player.draw && perimeter.isVertexOnPerim(player.position)){
+        perimeter.finishTrail(trail);
+        state = FILL_ANIMATION;
+      }
+    }
+  }
+  // draws
   void drawPlaying()
   {
     spriteManager.restore();
-
-    if (arduboy.everyXFrames(player.draw ? (player.draw + SLOW_DRAW_SPEED) : FAST_DRAW_SPEED))
-      player.move();
-
+    perimeter.draw();
+    updatePlaying();
     spriteManager.draw();
   }
   void drawFillAnimation()

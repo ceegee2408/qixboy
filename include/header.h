@@ -2,11 +2,12 @@
 #define HEADER_H
 
 #define MAX_VERTICES 120
+#define MAX_TRAIL_VERTICES 30
 #define MAX_SPRITES 6
 #define DEBUG INFO
-#define SLOW_DRAW_SPEED 4
+#define SLOW_DRAW_SPEED 5
 #define FAST_DRAW_SPEED 3
-#define NORMAL_SPEED FAST_DRAW_SPEED
+#define NORMAL_SPEED 2
 #define RESPAWN true
 
 #include <Arduboy2.h>
@@ -15,6 +16,13 @@
 #include "bitmaps.h"
 #include "handleRender.h"
 #include "direction.h"
+#include "trail.h"
 #include "perimeter.h"
+
+
+byte mod(byte a, byte b)
+{
+    return (a % b + b) % b;
+}
 
 #endif

@@ -77,6 +77,14 @@ public:
       Serial.println(value);
     }
   }
+  void logBitmap(const char *type, const byte value, debugType messageType = INFO) 
+  {
+    if (set != NONE && set >= messageType){
+      Serial.print(type);
+      Serial.print(": ");
+      Serial.println(String(value, BIN));
+    }
+  }
   void printVertex(const vertex &v);
   void log (const char *type, const vertex &v, debugType messageType = INFO)
   {

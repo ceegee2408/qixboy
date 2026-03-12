@@ -3,32 +3,52 @@
 
 #include "header.h"
 
-class index
-{
-public:
-    byte i1;
-    byte i2;
-    index() : i1(0), i2(0) { debug.log("RUN", "index default constructor", INFO); }
-    index(byte i1, byte i2) : i1(i1), i2(i2) {}
-};
-
 class Perimeter
 {
 public:
     vertex vertices[MAX_VERTICES];
-    byte numPerimVertices;
-    byte totalVertices;
-    index trailIndex; // i1: index where player began draw, i2: the num of vertices when draw began
+    byte numVertices;
 
-    void drawPerim()
+    byte nextIndex(byte i)
     {
-        debug.log("RUN", "Perimeter draw", INFO);
-        for (byte i = 0; i < numPerimVertices; i++)
+        byte next = i + 1;
+        return (next >= numVertices) ? 0 : next;
+    }
+    byte prevIndex(byte i)
+    {
+        return (i == 0) ? numVertices - 1 : i - 1;
+    }
+
+    void draw()
+    {
+        debug.log("RUN", "Perimeter draw", DETAILED);
+        for (byte i = 0; i < numVertices; i++)
         {
             vertex v1 = vertices[i];
-            vertex v2 = vertices[(i + 1) % numPerimVertices];
+            vertex v2 = vertices[(i + 1) % numVertices];
             arduboy.drawLine(v1.x, v1.y, v2.x, v2.y, WHITE);
         }
+    }
+
+    void addVertex(vertex v, byte index)
+    {
+        debug.log("RUN", "Perimeter addVertex", INFO);
+        for (byte i = numVertices; i > index; i--)
+        {
+            vertices[i] = vertices[i - 1];
+        }
+        vertices[index] = v;
+        numVertices++;
+    }
+
+    void removeVertex(byte index)
+    {
+        debug.log("RUN", "Perimeter removeVertex", INFO);
+        for (byte i = index; i < numVertices - 1; i++)
+        {
+            vertices[i] = vertices[i + 1];
+        }
+        numVertices--;
     }
 
     void restartPerimeter()
@@ -43,63 +63,67 @@ public:
         vertices[1] = vertex(0, HEIGHT - 1);
         vertices[2] = vertex(WIDTH - 1, HEIGHT - 1);
         vertices[3] = vertex(WIDTH - 1, 0);
-        numPerimVertices = 4;
-        totalVertices = 4;
+        numVertices = 4;
     }
 
     bool isVertexOnPerim(vertex v)
     {
-        for (byte i = 0; i < numPerimVertices; i++)
+        for (byte i = 0; i < numVertices; i++)
         {
             vertex v1 = vertices[i];
-            vertex v2 = vertices[(i + 1) % numPerimVertices];
+            vertex v2 = vertices[(i + 1) % numVertices];
             if (along(v, v1, v2))
                 return true;
         }
         return false;
     }
 
-    bool isVertexOnTrail(vertex v)
+    byte perimLengthUpTo(vertex v)
     {
-        for (byte i = trailIndex.i2; i < totalVertices - 1; i++)
+        byte length = 0;
+        for (byte i = 0; i < numVertices; i++)
         {
             vertex v1 = vertices[i];
-            vertex v2 = vertices[(i + 1)];
+            vertex v2 = vertices[(i + 1) % numVertices];
             if (along(v, v1, v2))
-                return true;
+            {
+                length += manhattanDistance(v1, v);
+                return length;
+            }
+            else
+            {
+                length += manhattanDistance(v1, v2);
+            }
         }
-        return false;
+        debug.critical("in: perimLengthUpTo, vertex not found on perimeter");
+        return 255;
     }
 
-    byte trailLength()
+    byte getAllowedMoves(vertex position, bool drawInput = 0)
     {
-        return totalVertices - trailIndex.i2;
-    }
-
-    vertex trail(byte index)
-    {
-        return vertices[trailIndex.i2 + index];
-    }
-
-    void drawTrail()
-    {
-        for (byte i = trailIndex.i2; i < totalVertices - 1; i++)
+        byte allowed = 0;
+        for (byte i = 0; i < numVertices; i++)
         {
-            vertex v1 = vertices[i];
-            vertex v2 = vertices[(i + 1)];
-            arduboy.drawLine(v1.x, v1.y, v2.x, v2.y, WHITE);
+            vertex a = vertices[i];
+            vertex b = vertices[nextIndex(i)];
+            if (along(position, a, b))
+            {
+                allowed |= Direction::fromVertices(position, a);
+                allowed |= Direction::fromVertices(position, b);
+                if (drawInput)
+                {
+                    byte edgeDir = Direction::fromVertices(a, b);
+                    allowed |= Direction::leftHandNormal(edgeDir);
+                }
+            }
         }
+        return allowed;
     }
 
-    void addTrail()
-    {
-    }
-
-    void finishTrail()
-    {
-        
+    void finishTrail(Trail &t) {
+        //TODO
+        t.clear();
     }
 };
-Perimeter perimeter;
 
 #endif

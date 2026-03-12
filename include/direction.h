@@ -10,9 +10,11 @@ namespace Direction {
     constexpr byte DOWN  = 0x08;
     constexpr byte FAST  = 0x10;
     constexpr byte SLOW  = 0x20;
+    constexpr byte DRAWBUTTONS = (FAST | SLOW);
     
     byte reverse(byte dir);
     byte fromVertices(vertex from, vertex to);
+    byte leftHandNormal(byte dir);
 }
 
 byte Direction::reverse(byte dir) {
@@ -31,6 +33,16 @@ byte Direction::fromVertices(vertex from, vertex to) {
     if (to.y > from.y) dir |= DOWN;
     if (to.x < from.x) dir |= LEFT;
     return dir;
+}
+
+byte Direction::leftHandNormal(byte dir) {
+    // returns the left-hand normal (90-degree CCW rotation)
+    // for a clockwise perimeter, this points inward
+    if (dir == DOWN)  return RIGHT;
+    if (dir == RIGHT) return UP;
+    if (dir == UP)    return LEFT;
+    if (dir == LEFT)  return DOWN;
+    return 0;
 }
 
 void moveVertex(vertex &v, byte direction) {

@@ -89,6 +89,33 @@ bool along(const vertex &v, const vertex &start, const vertex &end)
     return false;
 }
 
+bool isInsidePolygon(const vertex &point, const vertex *polygon, byte numVertices)
+{
+    if (numVertices < 3) return false;
+    
+    int intersections = 0;
+    for (byte i = 0; i < numVertices; i++)
+    {
+        vertex v1 = polygon[i];
+        vertex v2 = polygon[(i + 1) % numVertices];
+
+        if ((v1.y <= point.y && v2.y > point.y) || (v2.y <= point.y && v1.y > point.y))
+        {
+            int xIntersection = v1.x + (point.y - v1.y) * (v2.x - v1.x) / (v2.y - v1.y);
+            if (point.x < xIntersection)
+            {
+                intersections++;
+            }
+        }
+    }
+    return (intersections % 2) == 1;
+}
+
+int manhattanDistance(const vertex &v1, const vertex &v2)
+{
+    return abs(v1.x - v2.x) + abs(v1.y - v2.y);
+}
+
 void Debug::printVertex(const vertex &v)
 {
     Serial.print("Vertex(");
