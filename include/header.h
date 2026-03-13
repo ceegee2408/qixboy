@@ -5,8 +5,8 @@
 #define MAX_TRAIL_VECTORS 30
 #define MAX_SPRITES 6
 #define DEBUG INFO
-#define SLOW_DRAW_SPEED 5
-#define FAST_DRAW_SPEED 3
+#define SLOW_DRAW_SPEED 3
+#define FAST_DRAW_SPEED 2
 #define NORMAL_SPEED 2
 #define RESPAWN true
 

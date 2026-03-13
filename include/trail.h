@@ -129,8 +129,15 @@ class Trail
         return area;
     }
 
-    void updateVectors(vector position) {
-        return;
+    void reverseSequence() {
+        for (byte i = 0; i < numVectors / 2; i++) {
+            vector temp = vectors[i];
+            vectors[i] = vectors[numVectors - 1 - i].opp();
+            vectors[numVectors - 1 - i] = temp.opp();
+        }
+        if (numVectors % 2 == 1) {
+            vectors[numVectors / 2] = vectors[numVectors / 2].opp();
+        }
     }
 
 };

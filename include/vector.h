@@ -25,6 +25,9 @@ public:
     byte oppDir() {
         return Direction::reverse(dir());
     }
+    vector opp() {
+        return vector(-x, -y);
+    }
 };
 
 bool operator==(const vector &v1, const vector &v2)
@@ -57,11 +60,11 @@ bool winding(const vector &v1, const vector &v2, const vector &v3)
     return (v2.x - v1.x) * (v3.y - v1.y) - (v2.y - v1.y) * (v3.x - v1.x) > 0;
 }
 
-bool isUShape(const vector &position, const vector &v1, const vector &v2, const vector &v3) {
-    return (winding(position, v1, v2) != winding(position, v1, v3)) &&
-           (winding(v1, v2, v3) != winding(v1, v2, position)) &&
-           (winding(v2, v3, position) != winding(v2, v3, v1)) &&
-           (winding(v3, position, v1) != winding(v3, position, v2));
+int8_t cross(vector v1, vector v2) {
+    int crossProduct = v1.x * v2.y - v1.y * v2.x;
+    if (crossProduct > 0) return 1; // counterclockwise
+    if (crossProduct < 0) return -1; // clockwise
+    return 0; // collinear
 }
 
 bool intersecting(const vector &v1, const vector &v2, const vector &v3, const vector &v4)

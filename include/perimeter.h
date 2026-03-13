@@ -126,9 +126,25 @@ public:
         return allowed;
     }
 
-    void finishTrail(Trail &t) {
-        //TODO
-        t.clear();
+    void insertTrail(Trail &t, byte startIndex, byte endIndex) {
+
+    }
+
+    void finishTrail(Trail &t, vector position, vector qixPosition) {
+        //vertex SCRATCH[]
+        if (t.numVectors == 0) {
+            return;
+        }
+        vector trailStart = t.initialVector;
+        vector trailEnd = position;
+        int8_t indexSeq = cross(qixPosition - trailStart, qixPosition - trailEnd); // idxseq returns 1 if the trail is indexed counterclockwise, -1 if clockwise, and 0 if collinear
+        // if -1 we rearrange the trail vectors in reverse order and invert them
+        if (indexSeq == -1) t.reverseSequence();
+        if (indexSeq == 0) {
+            debug.critical("in: finishTrail, trail is collinear with qix");
+        }
+        // insert trail vectors into perimeter
+        byte insertIndex = 0;
     }
 };
 

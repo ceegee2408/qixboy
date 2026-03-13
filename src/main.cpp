@@ -236,6 +236,8 @@ public:
   }
   void drawFillAnimation()
   {
+    //debug text to verify draw anim call
+    debug.log("RUN", "drawFillAnimation", INFO);
   }
   void drawDeathAnimation()
   {
@@ -281,7 +283,7 @@ public:
 
     if (perimeter.isVectorOnPerim(player.position))
     {
-      perimeter.finishTrail(trail);
+      perimeter.finishTrail(trail, player.position, qix.position);
       trail.clear();
       player.draw = 0;
       state = FILL_ANIMATION;
