@@ -1,7 +1,7 @@
 #ifndef DIRECTION_H
 #define DIRECTION_H
 
-#include "vertex.h"
+class vector;
 
 namespace Direction {
     constexpr byte UP    = 0x01;
@@ -10,9 +10,14 @@ namespace Direction {
     constexpr byte DOWN  = 0x08;
     constexpr byte FAST  = 0x10;
     constexpr byte SLOW  = 0x20;
+    constexpr byte DRAWBUTTONS = (FAST | SLOW);
     
     byte reverse(byte dir);
-    byte fromVertices(vertex from, vertex to);
+    byte fromPosition(vector from, vector to);
+    byte leftHandNormal(vector v);
+    byte leftHandNormal(byte dir);
+    vector unitVec(byte dir, byte mult = 1);
+    void movePosition(vector &v, byte direction);
 }
 
 byte Direction::reverse(byte dir) {
@@ -22,22 +27,6 @@ byte Direction::reverse(byte dir) {
     if (dir & LEFT) reversed |= RIGHT;
     if (dir & DOWN) reversed |= UP;
     return reversed;
-}
-
-byte Direction::fromVertices(vertex from, vertex to) {
-    byte dir = 0;
-    if (to.y < from.y) dir |= UP;
-    if (to.x > from.x) dir |= RIGHT;
-    if (to.y > from.y) dir |= DOWN;
-    if (to.x < from.x) dir |= LEFT;
-    return dir;
-}
-
-void moveVertex(vertex &v, byte direction) {
-    if (direction & Direction::UP) v.y--;
-    if (direction & Direction::RIGHT) v.x++;
-    if (direction & Direction::DOWN) v.y++;
-    if (direction & Direction::LEFT) v.x--;
 }
 
 #endif

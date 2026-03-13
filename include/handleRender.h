@@ -2,7 +2,7 @@
 #define HANDLE_RENDER_H
 
 #include <Arduboy2.h>
-#include "vertex.h"
+#include "vector.h"
 
 #define MAX_SPRITES 6
 
@@ -13,7 +13,7 @@ class handleRender
 public:
     const byte *mask;
     byte background[8];
-    vertex bgPosition;
+    vector bgPosition;
     bool bgSet = false;
     bool invert = false;
 
@@ -28,7 +28,7 @@ public:
         mask = newMask;
     }
 
-    void drawMask(vertex position)
+    void drawMask(vector position)
     {
         int sx = (int8_t)position.x;
         int sy = (int8_t)position.y;
@@ -58,7 +58,7 @@ public:
         }
     }
 
-    void setBackground(vertex position) {
+    void setBackground(vector position) {
         bgPosition = position;
         int sx = (int8_t)position.x;
         int sy = (int8_t)position.y;
@@ -106,9 +106,9 @@ class SpriteManager {
     public:
         handleRender *sprites[MAX_SPRITES];
         byte numSprites = 0;
-        vertex positions[MAX_SPRITES];
+        vector positions[MAX_SPRITES];
 
-        void add(handleRender *sprite, vertex position) {
+        void add(handleRender *sprite, vector position) {
             if (numSprites < MAX_SPRITES) {
                 sprite->bgSet = false;
                 sprites[numSprites] = sprite;
@@ -119,7 +119,7 @@ class SpriteManager {
             }
         }
 
-        void update(handleRender *sprite, vertex newPosition) {
+        void update(handleRender *sprite, vector newPosition) {
             for (byte i = 0; i < numSprites; i++) {
                 if (sprites[i] == sprite) {
                     positions[i] = newPosition;

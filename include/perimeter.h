@@ -3,103 +3,133 @@
 
 #include "header.h"
 
-class index
-{
-public:
-    byte i1;
-    byte i2;
-    index() : i1(0), i2(0) { debug.log("RUN", "index default constructor", INFO); }
-    index(byte i1, byte i2) : i1(i1), i2(i2) {}
-};
-
 class Perimeter
 {
 public:
-    vertex vertices[MAX_VERTICES];
-    byte numPerimVertices;
-    byte totalVertices;
-    index trailIndex; // i1: index where player began draw, i2: the num of vertices when draw began
-
-    void drawPerim()
+    vector vectors[MAX_VECTORS];
+    vector initialVector;
+    byte numVectors;
+    byte nextIndex(byte i)
     {
-        debug.log("RUN", "Perimeter draw", INFO);
-        for (byte i = 0; i < numPerimVertices; i++)
+        byte next = i + 1;
+        return (next >= numVectors) ? 0 : next;
+    }
+    byte prevIndex(byte i)
+    {
+        return (i == 0) ? numVectors - 1 : i - 1;
+    }
+
+    void draw()
+    {   
+        debug.log("RUN", "Perimeter draw", DETAILED);
+        vector pos = initialVector;
+        for (byte i = 0; i < numVectors; i++)
         {
-            vertex v1 = vertices[i];
-            vertex v2 = vertices[(i + 1) % numPerimVertices];
-            arduboy.drawLine(v1.x, v1.y, v2.x, v2.y, WHITE);
+            vector next = pos + vectors[i];
+            arduboy.drawLine(pos.x, pos.y, next.x, next.y, WHITE);
+            pos = next;
         }
+    }
+
+    void addVector(vector v, byte index)
+    {
+        debug.log("RUN", "Perimeter addvector", INFO);
+        for (byte i = numVectors; i > index; i--)
+        {
+            vectors[i] = vectors[i - 1];
+        }
+        vectors[index] = v;
+        numVectors++;
+    }
+
+    void removeVector(byte index)
+    {
+        debug.log("RUN", "Perimeter removevector", INFO);
+        for (byte i = index; i < numVectors - 1; i++)
+        {
+            vectors[i] = vectors[i + 1];
+        }
+        numVectors--;
     }
 
     void restartPerimeter()
     {
         debug.log("RUN", "restartPerimeter", INFO);
-        for (int i = 0; i < MAX_VERTICES; i++)
+        for (int i = 0; i < MAX_VECTORS; i++)
         {
-            vertices[i].x = 0;
-            vertices[i].y = 0;
+            vectors[i].x = 0;
+            vectors[i].y = 0;
         }
-        vertices[0] = vertex(0, 0);
-        vertices[1] = vertex(0, HEIGHT - 1);
-        vertices[2] = vertex(WIDTH - 1, HEIGHT - 1);
-        vertices[3] = vertex(WIDTH - 1, 0);
-        numPerimVertices = 4;
-        totalVertices = 4;
+        initialVector = vector(0, 0);
+        vectors[0] = vector(0, HEIGHT - 1);
+        vectors[1] = vector(WIDTH - 1, 0);
+        vectors[2] = vector(0, -HEIGHT + 1);
+        vectors[3] = vector(-WIDTH + 1, 0);
+        numVectors = 4;
     }
 
-    bool isVertexOnPerim(vertex v)
+    bool isVectorOnPerim(vector v)
     {
-        for (byte i = 0; i < numPerimVertices; i++)
+        vector a = initialVector;
+        for (byte i = 0; i < numVectors; i++)
         {
-            vertex v1 = vertices[i];
-            vertex v2 = vertices[(i + 1) % numPerimVertices];
-            if (along(v, v1, v2))
+            vector b = a + vectors[i];
+            if (along(v, a, vectors[i]))
+            {
                 return true;
+            }
+            a = b;
         }
         return false;
     }
 
-    bool isVertexOnTrail(vertex v)
+    byte perimLengthUpTo(vector v)
     {
-        for (byte i = trailIndex.i2; i < totalVertices - 1; i++)
+        byte length = 0;
+        vector a = initialVector;
+        for (byte i = 0; i < numVectors; i++)
         {
-            vertex v1 = vertices[i];
-            vertex v2 = vertices[(i + 1)];
-            if (along(v, v1, v2))
-                return true;
+            vector b = a + vectors[i];
+            if (along(v, a, vectors[i]))
+            {
+                length += (v - a).len();
+                return length;
+            }
+            else
+            {
+                length += vectors[i].len();
+            }
+            a = b;
         }
-        return false;
+        debug.critical("in: perimLengthUpTo, vector not found on perimeter");
+        return 255;
     }
 
-    byte trailLength()
-    {
-        return totalVertices - trailIndex.i2;
-    }
 
-    vertex trail(byte index)
+    byte getAllowedMoves(vector position, bool drawInput = 0)
     {
-        return vertices[trailIndex.i2 + index];
-    }
-
-    void drawTrail()
-    {
-        for (byte i = trailIndex.i2; i < totalVertices - 1; i++)
+        byte allowed = 0;
+        vector a = initialVector;
+        for (byte i = 0; i < numVectors; i++)
         {
-            vertex v1 = vertices[i];
-            vertex v2 = vertices[(i + 1)];
-            arduboy.drawLine(v1.x, v1.y, v2.x, v2.y, WHITE);
+            vector b = a + vectors[i];
+            if (along(position, a, vectors[i]))
+            {
+                byte segDir = vectors[i].dir();
+                if (position != b) allowed |= segDir;
+                if (position != a) allowed |= Direction::reverse(segDir);
+                if (drawInput)
+                    allowed |= Direction::leftHandNormal(vectors[i]);
+            }
+            a = b;
         }
+        return allowed;
     }
 
-    void addTrail()
-    {
-    }
-
-    void finishTrail()
-    {
-        
+    void finishTrail(Trail &t) {
+        //TODO
+        t.clear();
     }
 };
-Perimeter perimeter;
 
 #endif

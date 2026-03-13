@@ -5,7 +5,7 @@
 
 extern Arduboy2 arduboy;
 
-class vertex;
+class vector;
 
 enum debugType
 {
@@ -77,14 +77,22 @@ public:
       Serial.println(value);
     }
   }
-  void printVertex(const vertex &v);
-  void log (const char *type, const vertex &v, debugType messageType = INFO)
+  void logBitmap(const char *type, const byte value, debugType messageType = INFO) 
+  {
+    if (set != NONE && set >= messageType){
+      Serial.print(type);
+      Serial.print(": ");
+      Serial.println(String(value, BIN));
+    }
+  }
+  void printVector(const vector &v);
+  void log (const char *type, const vector &v, debugType messageType = INFO)
   {
     if (set != NONE && set >= messageType)
     {
     Serial.print(type);
     Serial.print(": ");
-    printVertex(v);
+    printVector(v);
     }
   }
 };
