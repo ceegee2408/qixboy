@@ -15,22 +15,22 @@ enum states
 class Qix
 {
 public:
-  vertex position;  // current position for collision/fill detection
-  vertex points[2]; // line endpoints for rendering
-  vertex velocities[2];
+  vector position;  // current position for collision/fill detection
+  vector points[2]; // line endpoints for rendering
+  vector velocities[2];
 
   Qix()
   {
     // initialize to center of screen for now
-    position = vertex(WIDTH / 2, HEIGHT / 2);
+    position = vector(WIDTH / 2, HEIGHT / 2);
   }
 };
 
 class Player
 {
 public:
-  vertex position;
-  vertex lastPosition;
+  vector position;
+  vector lastPosition;
   byte lives;
   byte draw = 0; // 0 = not drawing, 1 = slow draw, 2 = fast draw
   long points;
@@ -40,7 +40,7 @@ public:
   Player()
   {
     restartPlayer();
-    vertex playerRenderOffset = (position - vertex(2, 2));
+    vector playerRenderOffset = (position - vector(2, 2));
     spriteManager.add(&render, playerRenderOffset);
   }
 
@@ -85,7 +85,7 @@ public:
     else
     {
       // no new buttons, use previously active direction if still held
-      byte currentDirection = Direction::fromVertices(lastPosition, position);
+      byte currentDirection = Direction::fromPosition(lastPosition, position);
       if (directional & currentDirection)
       {
         result = currentDirection; // continue in same direction
@@ -115,15 +115,16 @@ public:
   void move(byte allowedInput)
   {
     lastPosition = position;
-    moveVertex(position, allowedInput);
-    vertex playerRenderOffset = (position - vertex(2, 2));
+    movePosition(position, allowedInput);
+    vector playerRenderOffset = (position - vector(2, 2));
     spriteManager.update(&render, playerRenderOffset);
   }
+
 
   void restartPlayer(bool respawn = false)
   {
     debug.log("RUN", "restartPlayer", INFO);
-    position = vertex(WIDTH / 2, HEIGHT - 1);
+    position = vector(WIDTH / 2, HEIGHT - 1);
     lastPosition = position;
     lives = (respawn) ? lives : 3;
     points = (respawn) ? points : 0;
@@ -133,24 +134,28 @@ public:
 
   byte getMoveSpeed() {
     byte moveSpeed = NORMAL_SPEED;
-    if(draw & 0){
-
+    if(draw == 2) {
+      moveSpeed = FAST_DRAW_SPEED;
+    } else if (draw == 1) {
+      moveSpeed = SLOW_DRAW_SPEED;
+    } else {
+      moveSpeed = NORMAL_SPEED;
     }
-    return; 
+    return moveSpeed; 
   }
 };
 
 class Sparx
 {
 public:
-  vertex position;
+  vector position;
   bool ccw;
 };
 
 class Fuze
 {
 public:
-  vertex position;
+  vector position;
   byte framesPlayerStationary = 0;
 };
 
@@ -220,37 +225,12 @@ public:
       state = PLAYING;
     }
   }
-
-  // updates
-  void updatePlaying()
-  {
-    if (arduboy.everyXFrames(player.getMoveSpeed())) {
-      byte input = player.filterPlayerInput(arduboy.buttonsState());
-      bool drawInput = input & Direction::DRAWBUTTONS;
-      debug.log("INPUT", input, INFO);
-      byte allowed; 
-      if (player.draw) {
-        allowed = trail.getAllowedMoves(player.position, input);
-      } else {
-        allowed = perimeter.getAllowedMoves(player.position, drawInput);
-      }
-      debug.logBitmap("ALLOWED", allowed, INFO);
-      player.move(allowed & input);
-      if (drawInput && !perimeter.isVertexOnPerim(player.position) && !player.draw){
-        player.draw = (input & Direction::FAST) ? 2 : 1;
-        trail.beginTrail(player.lastPosition);
-      }
-      if (player.draw && perimeter.isVertexOnPerim(player.position)){
-        perimeter.finishTrail(trail);
-        state = FILL_ANIMATION;
-      }
-    }
-  }
-  // draws
+ // draws
   void drawPlaying()
   {
     spriteManager.restore();
     perimeter.draw();
+    if (player.draw) trail.draw();
     updatePlaying();
     spriteManager.draw();
   }
@@ -262,6 +242,66 @@ public:
   }
   void drawGameOver()
   {
+  }
+
+  byte getAllowedMoves(byte input, bool drawInput)
+  {
+    if (player.draw)
+    {
+      return trail.getAllowedMoves(player.position, input);
+    }
+    return perimeter.getAllowedMoves(player.position, drawInput);
+  }
+
+  void beginDrawing(byte input)
+  {
+    player.draw = (input & Direction::FAST) ? 2 : 1;
+    trail.beginTrail(player.lastPosition, player.draw);
+  }
+
+  void updateDrawingState(byte input, bool drawInput)
+  {
+    bool moved = player.position != player.lastPosition;
+    if (!moved)
+    {
+      return;
+    }
+
+    if (drawInput && !player.draw && !perimeter.isVectorOnPerim(player.position))
+    {
+      beginDrawing(input);
+    }
+
+    if (!player.draw)
+    {
+      return;
+    }
+
+    trail.recordMovement(player.lastPosition, player.position);
+
+    if (perimeter.isVectorOnPerim(player.position))
+    {
+      perimeter.finishTrail(trail);
+      trail.clear();
+      player.draw = 0;
+      state = FILL_ANIMATION;
+    }
+  }
+
+  // updates
+  void updatePlaying()
+  {
+    if (arduboy.everyXFrames(player.getMoveSpeed())) {
+      byte input = player.filterPlayerInput(arduboy.buttonsState());
+      bool drawInput = input & Direction::DRAWBUTTONS;
+      debug.log("INPUT", input, INFO);
+
+      byte allowed = getAllowedMoves(input, drawInput);
+      debug.logBitmap("ALLOWED", allowed, INFO);
+
+      player.move(allowed & input);
+      updateDrawingState(input, drawInput);
+    }
   }
 };
 Game game;
