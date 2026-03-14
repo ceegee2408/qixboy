@@ -1,7 +1,7 @@
 #ifndef DIRECTION_H
 #define DIRECTION_H
 
-#include "vertex.h"
+class vector;
 
 namespace Direction {
     constexpr byte UP    = 0x01;
@@ -13,8 +13,11 @@ namespace Direction {
     constexpr byte DRAWBUTTONS = (FAST | SLOW);
     
     byte reverse(byte dir);
-    byte fromVertices(vertex from, vertex to);
+    byte fromPosition(vector from, vector to);
+    byte leftHandNormal(vector v);
     byte leftHandNormal(byte dir);
+    vector unitVec(byte dir, byte mult = 1);
+    void movePosition(vector &v, byte direction);
 }
 
 byte Direction::reverse(byte dir) {
@@ -24,32 +27,6 @@ byte Direction::reverse(byte dir) {
     if (dir & LEFT) reversed |= RIGHT;
     if (dir & DOWN) reversed |= UP;
     return reversed;
-}
-
-byte Direction::fromVertices(vertex from, vertex to) {
-    byte dir = 0;
-    if (to.y < from.y) dir |= UP;
-    if (to.x > from.x) dir |= RIGHT;
-    if (to.y > from.y) dir |= DOWN;
-    if (to.x < from.x) dir |= LEFT;
-    return dir;
-}
-
-byte Direction::leftHandNormal(byte dir) {
-    // returns the left-hand normal (90-degree CCW rotation)
-    // for a clockwise perimeter, this points inward
-    if (dir == DOWN)  return RIGHT;
-    if (dir == RIGHT) return UP;
-    if (dir == UP)    return LEFT;
-    if (dir == LEFT)  return DOWN;
-    return 0;
-}
-
-void moveVertex(vertex &v, byte direction) {
-    if (direction & Direction::UP) v.y--;
-    if (direction & Direction::RIGHT) v.x++;
-    if (direction & Direction::DOWN) v.y++;
-    if (direction & Direction::LEFT) v.x--;
 }
 
 #endif
