@@ -11,10 +11,10 @@ public:
     int8_t y;
     vector() : x(0), y(0) {}
     vector(int8_t x, int8_t y) : x(x), y(y) {}
-    byte len() {
+    byte len() const {
         return abs(x) + abs(y);
     }
-    byte dir() {
+    byte dir() const {
         byte dir = 0;
         if (y < 0) dir |= Direction::UP;
         if (x > 0) dir |= Direction::RIGHT;
@@ -22,11 +22,55 @@ public:
         if (x < 0) dir |= Direction::LEFT;
         return dir;
     }
-    byte oppDir() {
+    byte oppDir() const {
         return Direction::reverse(dir());
     }
-    vector opp() {
+    vector opp() const {
         return vector(-x, -y);
+    }
+};
+
+class PackedSegment
+{
+public:
+    static constexpr byte MAX_LEN = 63;
+
+    static byte encode(const vector &v)
+    {
+        byte len = v.len();
+        if (len > MAX_LEN)
+        {
+            len = MAX_LEN;
+        }
+
+        byte code = 0;
+        if (v.y < 0)
+            code = 0; // UP
+        else if (v.x > 0)
+            code = 1; // RIGHT
+        else if (v.y > 0)
+            code = 2; // DOWN
+        else if (v.x < 0)
+            code = 3; // LEFT
+
+        return byte((len << 2) | code);
+    }
+
+    static vector decode(byte packed)
+    {
+        byte len = packed >> 2;
+        byte code = packed & 0x03;
+        switch (code)
+        {
+        case 0:
+            return vector(0, -len);
+        case 1:
+            return vector(len, 0);
+        case 2:
+            return vector(0, len);
+        default:
+            return vector(-len, 0);
+        }
     }
 };
 
@@ -102,26 +146,29 @@ bool along(const vector &v, const vector &position, const vector &direction)
     return false;
 }
 
-bool isInsidePolygon(const vector &point, const vector *polygon, byte numVectors)
+bool isInsidePolygon(const vector &point, const vector &polygonStart, const vector *polygon, byte numVectors)
 {
-    if (numVectors < 3) return false;
-    
-    int intersections = 0;
+    byte crossings = 0;
+    vector current = polygonStart;
     for (byte i = 0; i < numVectors; i++)
     {
-        vector v1 = polygon[i];
-        vector v2 = polygon[(i + 1) % numVectors];
-
-        if ((v1.y <= point.y && v2.y > point.y) || (v2.y <= point.y && v1.y > point.y))
+        vector next = current + polygon[i];
+        // Half-open edge test avoids double counting when the ray hits vertices.
+        bool edgeCrossesScanline = (current.y > point.y) != (next.y > point.y);
+        if (edgeCrossesScanline)
         {
-            int xIntersection = v1.x + (point.y - v1.y) * (v2.x - v1.x) / (v2.y - v1.y);
-            if (point.x < xIntersection)
+            int dx = (int)next.x - (int)current.x;
+            int dy = (int)next.y - (int)current.y;
+            int relY = (int)point.y - (int)current.y;
+            int xCross = (int)current.x + (relY * dx) / dy;
+            if ((int)point.x < xCross)
             {
-                intersections++;
+                crossings++;
             }
         }
+        current = next;
     }
-    return (intersections % 2) == 1;
+    return (crossings % 2) == 1;
 }
 
 int manhattanDistance(const vector &v1, const vector &v2)

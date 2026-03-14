@@ -228,6 +228,7 @@ public:
  // draws
   void drawPlaying()
   {
+    perimeter.clearDraw();
     spriteManager.restore();
     perimeter.draw();
     if (player.draw) trail.draw();
@@ -236,8 +237,9 @@ public:
   }
   void drawFillAnimation()
   {
-    //debug text to verify draw anim call
-    debug.log("RUN", "drawFillAnimation", INFO);
+    //trail.fill();
+    
+    state = PLAYING;
   }
   void drawDeathAnimation()
   {
@@ -284,7 +286,6 @@ public:
     if (perimeter.isVectorOnPerim(player.position))
     {
       perimeter.finishTrail(trail, player.position, qix.position);
-      trail.clear();
       player.draw = 0;
       state = FILL_ANIMATION;
     }
@@ -313,6 +314,7 @@ void setup()
   // init arduboy
   arduboy.boot();
   arduboy.flashlight();
+  initFxChip();
   arduboy.setFrameRate(60);
   // init serial
   Serial.begin(9600);

@@ -1,0 +1,12 @@
+/*******************************************************************************
+ FX data resource file for Qixboy
+
+ Generate and upload with PlatformIO:
+ - pio run -t fxdata
+ - pio run -t uploadfx
+
+ This file starts with a minimal string so fxdata.h/fxdata.bin can be generated.
+ Add image_t, string, and data arrays here as you move assets out of SRAM.
+*******************************************************************************/
+
+string FX_GAME_TITLE = "QIXBOY"

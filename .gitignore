@@ -3,3 +3,10 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
+fxdata/fxdata.bin
+fxdata/fxdata-data.bin
+fxdata/fxdata-save.bin
+fxdata/fxdata.h
+tools/fxdata-build.py
+tools/fxdata-upload.py
+tools/__pycache__/

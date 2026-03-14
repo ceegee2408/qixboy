@@ -5,33 +5,68 @@
 
 class Trail
 {
-    public:
-    vector vectors[MAX_TRAIL_VECTORS];
+public:
+    byte trailVectors[MAX_TRAIL_VECTORS];
     vector initialVector;
     byte numVectors;
     byte speed;
     bool fillAnimation;
     Trail() : numVectors(0), speed(0), fillAnimation(false) {}
+
+    vector getVector(byte index) const
+    {
+        return PackedSegment::decode(trailVectors[index]);
+    }
+
+    void setVector(byte index, const vector &v)
+    {
+        trailVectors[index] = PackedSegment::encode(v);
+    }
+
+    bool appendPacked(const vector &v)
+    {
+        if (numVectors >= MAX_TRAIL_VECTORS)
+        {
+            debug.critical("Max trail vectors reached");
+            return false;
+        }
+        setVector(numVectors, v);
+        numVectors++;
+        return true;
+    }
+
+    void appendSplit(const vector &v)
+    {
+        byte len = v.len();
+        if (len == 0)
+        {
+            return;
+        }
+
+        byte dir = v.dir();
+        while (len > 0)
+        {
+            byte chunk = (len > PackedSegment::MAX_LEN) ? PackedSegment::MAX_LEN : len;
+            if (!appendPacked(Direction::unitVec(dir, chunk)))
+            {
+                return;
+            }
+            len -= chunk;
+        }
+    }
+
     void draw() {
         vector pos = initialVector;
         for (byte i = 0; i < numVectors; i++)
         {
-            vector next = pos + vectors[i];
+            vector next = pos + getVector(i);
             arduboy.drawLine(pos.x, pos.y, next.x, next.y, WHITE);
             pos = next;
         }
     }
     void addVector(vector v)
     {
-        if (numVectors < MAX_TRAIL_VECTORS)
-        {
-            vectors[numVectors] = v;
-            numVectors++;
-        }
-        else
-        {
-            debug.critical("Max trail vectors reached");
-        }
+        appendSplit(v);
     }
     void clear()
     {
@@ -47,6 +82,31 @@ class Trail
         speed = trailSpeed;
     }
 
+    void setFillPolygon(vector start, const vector *newVectors, byte newNumVectors)
+    {
+        if (newNumVectors > MAX_TRAIL_VECTORS)
+        {
+            debug.critical("Fill polygon exceeds trail storage");
+        }
+        clear();
+        initialVector = start;
+        speed = 0;
+        fillAnimation = true;
+        for (byte i = 0; i < newNumVectors; i++)
+        {
+            addVector(newVectors[i]);
+        }
+        fillAnimation = true;
+    }
+
+    void fill()
+    {
+        if (!fillAnimation)
+        {
+            return;
+        }
+    }
+
     byte getAllowedMoves(vector position, byte drawInput)
     {   
         byte allowed = 0;
@@ -54,14 +114,15 @@ class Trail
         if(speed != inputSpeed) {
             return allowed;
         }
-
+        if(numVectors == MAX_TRAIL_VECTORS){
+            return getVector(numVectors - 1).dir();
+        }
         // Trail can be entered before the first segment is recorded.
         if (numVectors == 0) {
             return Direction::UP | Direction::DOWN | Direction::LEFT | Direction::RIGHT;
         }
-
         allowed = Direction::UP | Direction::DOWN | Direction::LEFT | Direction::RIGHT;
-        allowed &= ~vectors[numVectors - 1].oppDir();
+        allowed &= ~getVector(numVectors - 1).oppDir();
         for (byte i = 0; i < 4; i++) {
             byte dir = 1 << i;
             vector nextPos = position + Direction::unitVec(dir, 2);
@@ -70,8 +131,8 @@ class Trail
             }
         }
         // prevent U-turns if trail is 2 units or shorter
-        if (numVectors > 1 && vectors[numVectors - 1].len() < 3) {
-            allowed &= ~vectors[numVectors - 2].oppDir();
+        if (numVectors > 1 && getVector(numVectors - 1).len() < 3) {
+            allowed &= ~getVector(numVectors - 2).oppDir();
         }
         return allowed;
     }
@@ -87,10 +148,25 @@ class Trail
             return;
         }
 
-        if (delta.dir() != vectors[numVectors - 1].dir()) {
+        vector tail = getVector(numVectors - 1);
+        if (delta.dir() != tail.dir()) {
             addVector(delta);
         } else {
-            vectors[numVectors - 1] = vectors[numVectors - 1] + delta;
+            byte remaining = delta.len();
+            byte dir = tail.dir();
+            while (remaining > 0)
+            {
+                tail = getVector(numVectors - 1);
+                byte space = PackedSegment::MAX_LEN - tail.len();
+                if (space == 0)
+                {
+                    addVector(Direction::unitVec(dir, remaining));
+                    return;
+                }
+                byte addLen = (remaining > space) ? space : remaining;
+                setVector(numVectors - 1, Direction::unitVec(dir, tail.len() + addLen));
+                remaining -= addLen;
+            }
         }
     }
 
@@ -98,8 +174,9 @@ class Trail
         vector pos = initialVector;
         for (byte i = 0; i < numVectors; i++)
         {
-            vector next = pos + vectors[i];
-            if (along(v, pos, vectors[i])) {
+            vector segment = getVector(i);
+            vector next = pos + segment;
+            if (along(v, pos, segment)) {
                 return true;
             }
             pos = next;
@@ -112,7 +189,7 @@ class Trail
         vector pos = initialVector;
         for (byte i = 0; i < numVectors; i++)
         {
-            vector next = pos + vectors[i];
+            vector next = pos + getVector(i);
             area += (long)pos.x * next.y - (long)next.x * pos.y;
             pos = next;
         }
@@ -131,12 +208,12 @@ class Trail
 
     void reverseSequence() {
         for (byte i = 0; i < numVectors / 2; i++) {
-            vector temp = vectors[i];
-            vectors[i] = vectors[numVectors - 1 - i].opp();
-            vectors[numVectors - 1 - i] = temp.opp();
+            vector temp = getVector(i);
+            setVector(i, getVector(numVectors - 1 - i).opp());
+            setVector(numVectors - 1 - i, temp.opp());
         }
         if (numVectors % 2 == 1) {
-            vectors[numVectors / 2] = vectors[numVectors / 2].opp();
+            setVector(numVectors / 2, getVector(numVectors / 2).opp());
         }
     }
 

@@ -16,7 +16,7 @@ namespace Direction {
     byte fromPosition(vector from, vector to);
     byte leftHandNormal(vector v);
     byte leftHandNormal(byte dir);
-    vector unitVec(byte dir, byte mult = 1);
+    vector unitVec(byte dir, byte mult);
     void movePosition(vector &v, byte direction);
 }
 
