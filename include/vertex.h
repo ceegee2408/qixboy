@@ -12,14 +12,24 @@ public:
     vertex(byte x, byte y) : x(x), y(y) {}
 };
 
-class line
+class vector
 {
 public:
-    vertex start;
-    vertex end;
-    line() : start(vertex()), end(vertex()) {}
-    line(vertex start, vertex end) : start(start), end(end) {}
+    int x;
+    int y;
+    vector() : x(0), y(0) {}
+    vector(int x, int y) : x(x), y(y) {}
 };
+
+vector vertexToVector(const vertex &from, const vertex &to)
+{
+    return vector(to.x - from.x, to.y - from.y);
+}
+
+vertex vectorToVertex(const vertex &start, const vector &vec)
+{
+    return vertex(start.x + vec.x, start.y + vec.y);
+}
 
 bool operator==(const vertex &v1, const vertex &v2)
 {
